@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		4FBFE9E1DFBC93554FC96D78 /* NotesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF13AA1DCA089C3616037B09 /* NotesViewModel.swift */; };
+		0D4B5E4F9A8B7C6D5E4F3A2B /* NotesExternalChangeMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4B5E4F9A8B7C6D5E4F3A2C /* NotesExternalChangeMonitor.swift */; };
 		6AFFA08F77C8F3AD29942605 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806523201C5EC03E1CC58EEB /* AppDelegate.swift */; };
+		1C4D7A2B3E6F8A9C0D1E2F3A /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3B4C5D6E7F8091A2B3C4D5 /* LaunchAtLoginManager.swift */; };
 		98EBEF61DF4D1A503C2B42D9 /* NotesFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41FCA92174879610EA813205 /* NotesFileStore.swift */; };
 		A1000000000000000000000A /* TotCloneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* TotCloneApp.swift */; };
 		A1000000000000000000000B /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* AppKit.framework */; };
@@ -19,7 +21,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2A3B4C5D6E7F8091A2B3C4D5 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		23C37D08B6E305CE35ADB4D3 /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		0D4B5E4F9A8B7C6D5E4F3A2C /* NotesExternalChangeMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesExternalChangeMonitor.swift; sourceTree = "<group>"; };
 		41FCA92174879610EA813205 /* NotesFileStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesFileStore.swift; sourceTree = "<group>"; };
 		77126D84BE2A15D6C6250CC9 /* Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		806523201C5EC03E1CC58EEB /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -79,8 +83,10 @@
 				ED3D65F87805E6C5D5F3943B /* Models.swift */,
 				FF13AA1DCA089C3616037B09 /* NotesViewModel.swift */,
 				41FCA92174879610EA813205 /* NotesFileStore.swift */,
+				0D4B5E4F9A8B7C6D5E4F3A2C /* NotesExternalChangeMonitor.swift */,
 				23C37D08B6E305CE35ADB4D3 /* AppSettings.swift */,
 				806523201C5EC03E1CC58EEB /* AppDelegate.swift */,
+				2A3B4C5D6E7F8091A2B3C4D5 /* LaunchAtLoginManager.swift */,
 				77126D84BE2A15D6C6250CC9 /* Views.swift */,
 			);
 			path = TotClone;
@@ -157,8 +163,10 @@
 				BAFAE1DB022DBD6CD47F8BE5 /* Models.swift in Sources */,
 				4FBFE9E1DFBC93554FC96D78 /* NotesViewModel.swift in Sources */,
 				98EBEF61DF4D1A503C2B42D9 /* NotesFileStore.swift in Sources */,
+				0D4B5E4F9A8B7C6D5E4F3A2B /* NotesExternalChangeMonitor.swift in Sources */,
 				FE938BE0DF94F900C17F2699 /* AppSettings.swift in Sources */,
 				6AFFA08F77C8F3AD29942605 /* AppDelegate.swift in Sources */,
+				1C4D7A2B3E6F8A9C0D1E2F3A /* LaunchAtLoginManager.swift in Sources */,
 				E01360F890437A1BA8B5F236 /* Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

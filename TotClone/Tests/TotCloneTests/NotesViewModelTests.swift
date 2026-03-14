@@ -32,6 +32,25 @@ final class NotesViewModelTests: XCTestCase {
         XCTAssertEqual(savedText, "third")
     }
 
+    func testRefreshFromDiskPicksUpExternalChanges() throws {
+        let folderURL = try makeTemporaryDirectory()
+        let store = try NotesFileStore(path: folderURL.path)
+        let viewModel = NotesViewModel()
+
+        try viewModel.attachFileStore(store)
+        viewModel.updateText("initial")
+        viewModel.flushPendingSaves()
+
+        try "external".write(
+            to: folderURL.appendingPathComponent("slot1.md"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        viewModel.refreshFromDisk()
+        XCTAssertEqual(viewModel.slots[0].text, "external")
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

@@ -14,6 +14,7 @@ final class NotesViewModel: ObservableObject {
     var fileErrorHandler: (() -> Void)?
     private var fileStore: NotesFileStore?
     private var fileStoreToken = UUID()
+    private var externalChangeMonitor: NotesExternalChangeMonitor?
 
     init() {
         let colors: [NSColor] = [
@@ -28,6 +29,10 @@ final class NotesViewModel: ObservableObject {
         self.slots = colors.enumerated().map { index, color in
             NoteSlot(id: index, color: color, text: "")
         }
+    }
+
+    deinit {
+        externalChangeMonitor?.stop()
     }
 
     func select(index: Int) {
@@ -66,18 +71,44 @@ final class NotesViewModel: ObservableObject {
     func attachFileStore(_ store: NotesFileStore) throws {
         fileStoreToken = UUID()
         fileStore = store
-        let texts = try store.loadAll(count: slots.count)
-        for index in slots.indices {
-            slots[index].text = texts[index]
+        refreshFromDisk()
+
+        externalChangeMonitor?.stop()
+        let expectedToken = fileStoreToken
+        externalChangeMonitor = NotesExternalChangeMonitor(
+            directoryURL: store.directoryURL,
+            fileURLs: store.fileURLs(count: slots.count)
+        ) { [weak self] in
+            Task { @MainActor in
+                guard let self, self.fileStoreToken == expectedToken else { return }
+                self.refreshFromDisk()
+            }
         }
+        externalChangeMonitor?.start()
     }
 
     func detachFileStore() {
         fileStoreToken = UUID()
         fileStore = nil
+        externalChangeMonitor?.stop()
+        externalChangeMonitor = nil
     }
 
     func flushPendingSaves() {
         fileStore?.flushSaves()
+    }
+
+    func refreshFromDisk() {
+        guard let fileStore else { return }
+        let expectedToken = fileStoreToken
+        do {
+            let texts = try fileStore.loadAll(count: slots.count)
+            guard fileStoreToken == expectedToken else { return }
+            for index in slots.indices where slots[index].text != texts[index] {
+                slots[index].text = texts[index]
+            }
+        } catch {
+            fileErrorHandler?()
+        }
     }
 }

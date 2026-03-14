@@ -47,6 +47,10 @@ struct NotesFileStore {
         self.folderURL = url
     }
 
+    var directoryURL: URL {
+        folderURL
+    }
+
     func loadAll(count: Int) throws -> [String] {
         let fileManager = FileManager.default
         var result: [String] = []
@@ -70,6 +74,10 @@ struct NotesFileStore {
         return result
     }
 
+    func fileURLs(count: Int) -> [URL] {
+        (0..<count).map(fileURL(for:))
+    }
+
     func save(
         text: String,
         index: Int,
@@ -88,7 +96,7 @@ struct NotesFileStore {
         saveCoordinator.flush()
     }
 
-    private func fileURL(for index: Int) -> URL {
+    func fileURL(for index: Int) -> URL {
         folderURL.appendingPathComponent("slot\(index + 1).md")
     }
 }

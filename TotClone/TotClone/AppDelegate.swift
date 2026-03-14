@@ -66,6 +66,110 @@ final class AppContainer {
     }
 }
 
+class CircleIcon: NSView {
+    // Устанавливаем большой размер для кликабельной области
+    override var intrinsicContentSize: NSSize { NSSize(width: 15, height: 15) }
+    
+    // Определяем, активна ли иконка
+    private var isActive: Bool {
+        // Проверяем различные условия активности
+        return NSApp.isActive ||
+               (self.window?.isKeyWindow ?? false) ||
+               NSScreen.main == self.window?.screen
+    }
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupNotifications()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupNotifications()
+    }
+    
+    private func setupNotifications() {
+        // Следим за изменениями активности приложения
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(redraw),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(redraw),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
+        
+        // Следим за изменениями ключевого окна
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(redraw),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(redraw),
+            name: NSWindow.didResignKeyNotification,
+            object: nil
+        )
+        
+        // Следим за изменениями экрана
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(redraw),
+            name: NSWindow.didChangeScreenNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func redraw() {
+        needsDisplay = true
+    }
+    
+    override func draw(_ rect: NSRect) {
+        let bounds = self.bounds
+        
+        // Используем разные цвета в зависимости от активности
+        if isActive {
+            NSColor.labelColor.setStroke() // Черный в светлой теме, белый в темной
+        } else {
+            // В неактивном состоянии используем полупрозрачный цвет
+            NSColor.labelColor.withAlphaComponent(0.5).setStroke()
+        }
+        
+        // Рисуем круг стандартного размера
+        let circleSize: CGFloat = 17
+        let circleRect = NSRect(
+            x: (bounds.width - circleSize) / 2,
+            y: (bounds.height - circleSize) / 2,
+            width: circleSize,
+            height: circleSize
+        )
+        
+        let path = NSBezierPath(ovalIn: circleRect.insetBy(dx: 2, dy: 2))
+        path.lineWidth = 2.5
+        path.stroke()
+    }
+    
+    // Переопределяем для обработки кликов
+    override func mouseDown(with event: NSEvent) {
+        // Вызываем action у родительской кнопки
+        if let button = superview as? NSButton {
+            button.performClick(nil)
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
@@ -79,19 +183,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        
+        // Устанавливаем фиксированную ширину для статус-бара
+        statusItem = NSStatusBar.system.statusItem(withLength: 22) // Увеличил до 28 для лучшей кликабельности
+        
         if let button = statusItem.button {
-            let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular, scale: .medium)
-            let image = NSImage(
-                systemSymbolName: "circle",
-                accessibilityDescription: "Notes"
-            )?.withSymbolConfiguration(configuration)
-            image?.isTemplate = true
-            button.image = image
+            let circle = CircleIcon()
+            circle.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(circle)
+            
+            NSLayoutConstraint.activate([
+                circle.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+                circle.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                circle.widthAnchor.constraint(equalToConstant: 20), // Полный размер для кликов
+                circle.heightAnchor.constraint(equalToConstant: 20)
+            ])
+            
             button.action = #selector(togglePopover(_:))
             button.target = self
         }
+        
+        // Добавляем наблюдатель для обновления иконки при изменении активности
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateStatusIcon),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateStatusIcon),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
 
         let contentView = ContentView(
             viewModel: container.viewModel,
@@ -128,10 +253,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.container.settings.promptForFolder()
             }
         }
+
+        container.settings.applyLaunchAtLoginPreferenceOnLaunch()
+    }
+    
+    @objc private func updateStatusIcon() {
+        // Принудительно обновляем иконку
+        statusItem.button?.needsDisplay = true
     }
 
     @objc private func togglePopover(_ sender: AnyObject?) {
         if container.windowState.isDetached {
+            container.viewModel.refreshFromDisk()
             showWindow()
             return
         }
@@ -139,6 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            container.viewModel.refreshFromDisk()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
@@ -193,6 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window = newWindow
             windowController = NSWindowController(window: newWindow)
         }
+        container.viewModel.refreshFromDisk()
         applyPin(container.windowState.isPinned)
         windowController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -208,7 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 rootView: SettingsView(settings: container.settings)
             )
             let newWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 420, height: 220),
+                contentRect: NSRect(x: 0, y: 0, width: 420, height: 260),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false

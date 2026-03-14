@@ -24,8 +24,35 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var launchAtLoginEnabled: Bool {
+        didSet {
+            guard !isInternalLaunchAtLoginUpdate else { return }
+            let desired = launchAtLoginEnabled
+            let previous = oldValue
+
+            UserDefaults.standard.set(desired, forKey: Self.launchAtLoginKey)
+
+            launchAtLoginApplyTask?.cancel()
+            launchAtLoginApplyTask = Task { @MainActor in
+                do {
+                    try LaunchAtLoginManager.setEnabled(desired)
+                } catch {
+                    await presentLaunchAtLoginError(error)
+                    isInternalLaunchAtLoginUpdate = true
+                    launchAtLoginEnabled = previous
+                    UserDefaults.standard.set(previous, forKey: Self.launchAtLoginKey)
+                    isInternalLaunchAtLoginUpdate = false
+                }
+            }
+        }
+    }
+
     static let userDefaultsKey = "notesFolderPath"
     static let themeColorKey = "themeColorRGBA"
+    static let launchAtLoginKey = "launchAtLoginEnabled"
+
+    private var isInternalLaunchAtLoginUpdate = false
+    private var launchAtLoginApplyTask: Task<Void, Never>?
 
     init() {
         let storedPath = UserDefaults.standard.string(forKey: Self.userDefaultsKey) ?? ""
@@ -37,6 +64,8 @@ final class AppSettings: ObservableObject {
         } else {
             themeColor = NSColor(calibratedRed: 0.17, green: 0.16, blue: 0.09, alpha: 1.0)
         }
+
+        launchAtLoginEnabled = UserDefaults.standard.object(forKey: Self.launchAtLoginKey) as? Bool ?? false
     }
 
     var hasFolderSelection: Bool {
@@ -74,6 +103,21 @@ final class AppSettings: ObservableObject {
         folderState = state
     }
 
+    func applyLaunchAtLoginPreferenceOnLaunch() {
+        let desired = launchAtLoginEnabled
+        Task { @MainActor in
+            do {
+                try LaunchAtLoginManager.setEnabled(desired)
+            } catch {
+                await presentLaunchAtLoginError(error)
+                isInternalLaunchAtLoginUpdate = true
+                launchAtLoginEnabled = LaunchAtLoginManager.isEnabled
+                UserDefaults.standard.set(launchAtLoginEnabled, forKey: Self.launchAtLoginKey)
+                isInternalLaunchAtLoginUpdate = false
+            }
+        }
+    }
+
     private static func encodeColor(_ color: NSColor) -> [Double] {
         let rgb = color.usingColorSpace(.deviceRGB) ?? color
         return [Double(rgb.redComponent), Double(rgb.greenComponent), Double(rgb.blueComponent), Double(rgb.alphaComponent)]
@@ -87,5 +131,14 @@ final class AppSettings: ObservableObject {
             blue: CGFloat(components[2]),
             alpha: CGFloat(components[3])
         )
+    }
+
+    private func presentLaunchAtLoginError(_ error: Error) async {
+        let alert = NSAlert()
+        alert.messageText = "Не удалось настроить автозапуск"
+        alert.informativeText = "macOS отклонила запрос на добавление приложения в автозапуск.\n\n\(error.localizedDescription)"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }

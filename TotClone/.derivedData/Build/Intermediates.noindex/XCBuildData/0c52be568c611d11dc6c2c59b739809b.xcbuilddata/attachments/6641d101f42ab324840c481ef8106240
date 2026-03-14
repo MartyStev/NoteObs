@@ -1,0 +1,99 @@
+{
+  "" : {
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotClone-primary.dia",
+    "emit-module-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotClone-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotClone-primary-emit-module.dia",
+    "pch" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotClone-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotClone-primary.swiftdeps"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/AppDelegate.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppDelegate~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/AppSettings.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/AppSettings~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/LaunchAtLoginManager.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/LaunchAtLoginManager~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/Models.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Models~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/NotesExternalChangeMonitor.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesExternalChangeMonitor~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/NotesFileStore.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesFileStore~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/NotesViewModel.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/NotesViewModel~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/TotCloneApp.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/TotCloneApp~partial.swiftmodule"
+  },
+  "/Users/martystev/VS/personal/NoteObs/TotClone/TotClone/Views.swift" : {
+    "const-values" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.swiftconstvalues",
+    "dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.d",
+    "diagnostics" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.dia",
+    "index-unit-output-path" : "/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.o",
+    "llvm-bc" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.bc",
+    "object" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.o",
+    "swift-dependencies" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views.swiftdeps",
+    "swiftmodule" : "/Users/martystev/VS/personal/NoteObs/TotClone/.derivedData/Build/Intermediates.noindex/TotClone.build/Debug/TotClone.build/Objects-normal/arm64/Views~partial.swiftmodule"
+  }
+}

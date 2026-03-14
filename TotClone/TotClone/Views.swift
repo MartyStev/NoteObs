@@ -285,6 +285,10 @@ struct SettingsView: View {
                 get: { Color(nsColor: settings.themeColor) },
                 set: { settings.setThemeColor(from: $0) }
             ))
+
+            Divider()
+
+            Toggle("Запускать при входе в систему", isOn: $settings.launchAtLoginEnabled)
         }
         .padding(16)
         .frame(width: 420)
