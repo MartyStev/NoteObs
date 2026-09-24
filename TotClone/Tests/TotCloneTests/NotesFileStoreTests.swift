@@ -1,38 +1,76 @@
+#if canImport(XCTest)
 import XCTest
 @testable import TotClone
 
 final class NotesFileStoreTests: XCTestCase {
-    func testLoadAllCreatesMissingFilesAndReturnsEmptySlots() throws {
+    func testEnsureSlotFilesCreatesMissingFilesWithoutTouchingExistingOnes() throws {
         let folderURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
         let store = try NotesFileStore(path: folderURL.path)
+        let existing = folderURL.appendingPathComponent("slot2.md")
+        try "keep".write(to: existing, atomically: true, encoding: .utf8)
 
-        let values = try store.loadAll(count: 3)
+        store.ensureSlotFiles(count: 3)
 
-        XCTAssertEqual(values, ["", "", ""])
-        XCTAssertEqual(try String(contentsOf: folderURL.appendingPathComponent("slot1.md"), encoding: .utf8), "")
-        XCTAssertEqual(try String(contentsOf: folderURL.appendingPathComponent("slot2.md"), encoding: .utf8), "")
-        XCTAssertEqual(try String(contentsOf: folderURL.appendingPathComponent("slot3.md"), encoding: .utf8), "")
+        XCTAssertEqual(store.loadSnapshot(count: 3), ["", "keep", ""])
     }
 
-    func testSaveReportsFailureWhenFolderBecomesUnavailable() throws {
+    func testLoadSnapshotReportsMissingFilesAsNilAndCreatesNothing() async throws {
+        let folderURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let store = try NotesFileStore(path: folderURL.path)
+        try await store.save(text: "kept", index: 1)
+
+        XCTAssertEqual(store.loadSnapshot(count: 3), [nil, "kept", nil])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.appendingPathComponent("slot1.md").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.appendingPathComponent("slot3.md").path))
+    }
+
+    func testSavePersistsContent() async throws {
+        let folderURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let store = try NotesFileStore(path: folderURL.path)
+        try await store.save(text: "hello world", index: 0)
+
+        let saved = try String(contentsOf: folderURL.appendingPathComponent("slot1.md"), encoding: .utf8)
+        XCTAssertEqual(saved, "hello world")
+    }
+
+    func testSaveOnUnavailableFolderIsFatal() async throws {
         let folderURL = try makeTemporaryDirectory()
         let store = try NotesFileStore(path: folderURL.path)
-        let expectation = expectation(description: "save failure")
 
         try FileManager.default.removeItem(at: folderURL)
 
-        var receivedResult: Result<Void, NotesFileStoreError>?
-        store.save(text: "hello", index: 0) { result in
-            receivedResult = result
-            expectation.fulfill()
+        do {
+            try await store.save(text: "hello", index: 0)
+            XCTFail("Expected the save to fail")
+        } catch let error as NotesFileStoreError {
+            XCTAssertEqual(error, .folderMissing)
+            XCTAssertTrue(error.isFatal)
         }
+    }
 
-        wait(for: [expectation], timeout: 2)
-        switch receivedResult {
-        case .failure(.writeFailed):
-            break
-        default:
-            XCTFail("Expected writeFailed, got \(String(describing: receivedResult))")
+    func testSaveBlockedByOneFileIsTransientAndKeepsTheFolder() async throws {
+        let folderURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+
+        let store = try NotesFileStore(path: folderURL.path)
+        // A directory in the slot's place makes the write fail while the folder stays usable.
+        try FileManager.default.createDirectory(
+            at: folderURL.appendingPathComponent("slot1.md"),
+            withIntermediateDirectories: true
+        )
+
+        do {
+            try await store.save(text: "hello", index: 0)
+            XCTFail("Expected the save to fail")
+        } catch let error as NotesFileStoreError {
+            XCTAssertEqual(error, .writeFailed)
+            XCTAssertFalse(error.isFatal)
         }
     }
 
@@ -42,3 +80,4 @@ final class NotesFileStoreTests: XCTestCase {
         return url
     }
 }
+#endif

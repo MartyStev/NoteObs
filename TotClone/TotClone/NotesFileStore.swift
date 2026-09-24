@@ -1,36 +1,27 @@
 import Foundation
 
-private final class SaveCoordinator {
-    private let queue = DispatchQueue(label: "TotClone.NotesFileStore.saveQueue", qos: .utility)
+/// Coordinates thread-safe atomic file writing operations via Swift Concurrency.
+public actor FileSaveActor {
+    public init() {}
 
-    func enqueueWrite(data: Data, to url: URL, completion: @escaping (Result<Void, NotesFileStoreError>) -> Void) {
-        queue.async {
-            let result: Result<Void, NotesFileStoreError>
-            do {
-                try data.write(to: url, options: .atomic)
-                result = .success(())
-            } catch {
-                result = .failure(.writeFailed)
-            }
-
-            DispatchQueue.main.async {
-                completion(result)
-            }
+    public func write(data: Data, to url: URL) throws {
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw NotesFileStoreError.writeFailed
         }
-    }
-
-    func flush() {
-        queue.sync {}
     }
 }
 
-struct NotesFileStore {
-    private let folderURL: URL
-    private let saveCoordinator = SaveCoordinator()
+public struct NotesFileStore: Sendable {
+    public let folderURL: URL
+    private let saveActor: FileSaveActor
 
-    init(path: String) throws {
+    public init(path: String, saveActor: FileSaveActor = FileSaveActor()) throws {
         let fileManager = FileManager.default
         let url = URL(fileURLWithPath: path, isDirectory: true)
+        _ = url.startAccessingSecurityScopedResource()
+
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw NotesFileStoreError.folderMissing
@@ -45,58 +36,76 @@ struct NotesFileStore {
             throw NotesFileStoreError.notWritable
         }
         self.folderURL = url
+        self.saveActor = saveActor
     }
 
-    var directoryURL: URL {
+    public var directoryURL: URL {
         folderURL
     }
 
-    func loadAll(count: Int) throws -> [String] {
+    public func loadSnapshot(count: Int) -> [String?] {
         let fileManager = FileManager.default
-        var result: [String] = []
-        result.reserveCapacity(count)
-        for index in 0..<count {
+        return (0..<count).map { index in
             let url = fileURL(for: index)
-            if !fileManager.fileExists(atPath: url.path) {
-                guard fileManager.createFile(atPath: url.path, contents: Data(), attributes: nil) else {
-                    throw NotesFileStoreError.writeFailed
-                }
-                result.append("")
-                continue
-            }
-            do {
-                let text = try String(contentsOf: url, encoding: .utf8)
-                result.append(text)
-            } catch {
-                throw NotesFileStoreError.readFailed
-            }
+            guard fileManager.fileExists(atPath: url.path) else { return nil }
+            return try? String(contentsOf: url, encoding: .utf8)
         }
-        return result
     }
 
-    func fileURLs(count: Int) -> [URL] {
+    /// Creates any slot file that is still missing. Best effort: a synced folder may be busy,
+    /// and a missing file is handled by the writer anyway.
+    public func ensureSlotFiles(count: Int) {
+        let fileManager = FileManager.default
+        for index in 0..<count {
+            let url = fileURL(for: index)
+            guard !fileManager.fileExists(atPath: url.path) else { continue }
+            try? Data().write(to: url, options: .atomic)
+        }
+    }
+
+    public func fileURLs(count: Int) -> [URL] {
         (0..<count).map(fileURL(for:))
     }
 
-    func save(
-        text: String,
-        index: Int,
-        completion: @escaping (Result<Void, NotesFileStoreError>) -> Void
-    ) {
+    public func save(text: String, index: Int) async throws {
         let url = fileURL(for: index)
         guard let data = text.data(using: .utf8) else {
-            completion(.failure(.writeFailed))
-            return
+            throw NotesFileStoreError.writeFailed
         }
-
-        saveCoordinator.enqueueWrite(data: data, to: url, completion: completion)
+        do {
+            try await saveActor.write(data: data, to: url)
+        } catch {
+            throw classificationOfWriteFailure()
+        }
     }
 
-    func flushSaves() {
-        saveCoordinator.flush()
+    /// Writing path used when there is no time to await, such as application termination.
+    public func saveSynchronously(text: String, index: Int) throws {
+        let url = fileURL(for: index)
+        guard let data = text.data(using: .utf8) else {
+            throw NotesFileStoreError.writeFailed
+        }
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw classificationOfWriteFailure()
+        }
     }
 
-    func fileURL(for index: Int) -> URL {
+    /// A failed write only means the folder is gone when the folder really is gone; otherwise
+    /// it is a transient provider hiccup that the caller should retry instead of dropping notes.
+    private func classificationOfWriteFailure() -> NotesFileStoreError {
+        var isDirectory: ObjCBool = false
+        let path = folderURL.path
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              FileManager.default.isWritableFile(atPath: path) else {
+            return .folderMissing
+        }
+        return .writeFailed
+    }
+
+    public func fileURL(for index: Int) -> URL {
         folderURL.appendingPathComponent("slot\(index + 1).md")
     }
 }

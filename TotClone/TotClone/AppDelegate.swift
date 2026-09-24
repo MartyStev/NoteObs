@@ -35,7 +35,7 @@ final class AppContainer {
         }
         do {
             let store = try NotesFileStore(path: path)
-            try viewModel.attachFileStore(store)
+            viewModel.attachFileStore(store)
             settings.setFolderState(.available)
         } catch {
             viewModel.detachFileStore()
@@ -47,126 +47,23 @@ final class AppContainer {
     private func handleInvalidFolder() {
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.isShowingFolderAlert else { return }
-            self.viewModel.detachFileStore()
+            // Suspended, not detached: whatever is typed stays in memory until the folder returns.
+            self.viewModel.suspendFileStore()
             self.settings.setFolderState(self.settings.notesFolderPath.isEmpty ? .unconfigured : .inaccessible)
             self.isShowingFolderAlert = true
 
             let alert = NSAlert()
-            alert.messageText = "Folder Access Error"
-            alert.informativeText = "Cannot access the notes folder. Please select it again."
+            alert.messageText = "Папка с заметками недоступна"
+            alert.informativeText = "Набранный текст сохранён в памяти. Выберите папку заново, чтобы записать его."
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "Select Folder")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "Выбрать папку")
+            alert.addButton(withTitle: "Отмена")
             let response = alert.runModal()
             self.isShowingFolderAlert = false
             if response == .alertFirstButtonReturn {
                 self.settings.promptForFolder()
             }
         }
-    }
-}
-
-class CircleIcon: NSView {
-    // Устанавливаем большой размер для кликабельной области
-    override var intrinsicContentSize: NSSize { NSSize(width: 15, height: 15) }
-    
-    // Определяем, активна ли иконка
-    private var isActive: Bool {
-        // Проверяем различные условия активности
-        return NSApp.isActive ||
-               (self.window?.isKeyWindow ?? false) ||
-               NSScreen.main == self.window?.screen
-    }
-    
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setupNotifications()
-    }
-    
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setupNotifications()
-    }
-    
-    private func setupNotifications() {
-        // Следим за изменениями активности приложения
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(redraw),
-            name: NSApplication.didBecomeActiveNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(redraw),
-            name: NSApplication.didResignActiveNotification,
-            object: nil
-        )
-        
-        // Следим за изменениями ключевого окна
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(redraw),
-            name: NSWindow.didBecomeKeyNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(redraw),
-            name: NSWindow.didResignKeyNotification,
-            object: nil
-        )
-        
-        // Следим за изменениями экрана
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(redraw),
-            name: NSWindow.didChangeScreenNotification,
-            object: nil
-        )
-    }
-    
-    @objc private func redraw() {
-        needsDisplay = true
-    }
-    
-    override func draw(_ rect: NSRect) {
-        let bounds = self.bounds
-        
-        // Используем разные цвета в зависимости от активности
-        if isActive {
-            NSColor.labelColor.setStroke() // Черный в светлой теме, белый в темной
-        } else {
-            // В неактивном состоянии используем полупрозрачный цвет
-            NSColor.labelColor.withAlphaComponent(0.5).setStroke()
-        }
-        
-        // Рисуем круг стандартного размера
-        let circleSize: CGFloat = 17
-        let circleRect = NSRect(
-            x: (bounds.width - circleSize) / 2,
-            y: (bounds.height - circleSize) / 2,
-            width: circleSize,
-            height: circleSize
-        )
-        
-        let path = NSBezierPath(ovalIn: circleRect.insetBy(dx: 2, dy: 2))
-        path.lineWidth = 2.5
-        path.stroke()
-    }
-    
-    // Переопределяем для обработки кликов
-    override func mouseDown(with event: NSEvent) {
-        // Вызываем action у родительской кнопки
-        if let button = superview as? NSButton {
-            button.performClick(nil)
-        }
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
     }
 }
 
@@ -180,52 +77,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
     private var settingsWindowController: NSWindowController?
     private var cancellables = Set<AnyCancellable>()
+    private var isResizingFromWindow = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         
-        // Устанавливаем фиксированную ширину для статус-бара
-        statusItem = NSStatusBar.system.statusItem(withLength: 22) // Увеличил до 28 для лучшей кликабельности
+        statusItem = NSStatusBar.system.statusItem(withLength: 22)
         
         if let button = statusItem.button {
-            let circle = CircleIcon()
-            circle.translatesAutoresizingMaskIntoConstraints = false
-            button.addSubview(circle)
+            let configuration = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+            let image = NSImage(systemSymbolName: "circle", accessibilityDescription: "TotClone")?
+                .withSymbolConfiguration(configuration)
+            image?.isTemplate = true
+            button.image = image
+            button.imagePosition = .imageOnly
+            button.imageScaling = .scaleProportionallyDown
             
-            NSLayoutConstraint.activate([
-                circle.centerXAnchor.constraint(equalTo: button.centerXAnchor),
-                circle.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-                circle.widthAnchor.constraint(equalToConstant: 20), // Полный размер для кликов
-                circle.heightAnchor.constraint(equalToConstant: 20)
-            ])
-            
-            button.action = #selector(togglePopover(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.action = #selector(handleStatusItemClick(_:))
             button.target = self
         }
-        
-        // Добавляем наблюдатель для обновления иконки при изменении активности
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateStatusIcon),
-            name: NSApplication.didBecomeActiveNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateStatusIcon),
-            name: NSApplication.didResignActiveNotification,
-            object: nil
-        )
 
         let contentView = ContentView(
             viewModel: container.viewModel,
             settings: container.settings,
             windowState: container.windowState
         )
-        popover.contentSize = NSSize(width: 720, height: 420)
+        popover.contentSize = NSSize(width: container.settings.windowWidth, height: container.settings.windowHeight)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: contentView)
+
+        Publishers.CombineLatest(container.settings.$windowWidth, container.settings.$windowHeight)
+            .removeDuplicates { $0 == $1 }
+            .sink { [weak self] width, height in
+                guard let self else { return }
+                self.popover.contentSize = NSSize(width: width, height: height)
+                if !self.isResizingFromWindow, let window = self.window, self.container.windowState.isDetached {
+                    var frame = window.frame
+                    if abs(frame.width - CGFloat(width)) > 1 || abs(frame.height - CGFloat(height)) > 1 {
+                        let deltaHeight = CGFloat(height) - frame.height
+                        frame.origin.y -= deltaHeight
+                        frame.size = CGSize(width: width, height: height)
+                        window.setFrame(frame, display: true, animate: false)
+                    }
+                }
+            }
+            .store(in: &cancellables)
 
         container.windowState.$isDetached
             .removeDuplicates()
@@ -257,9 +154,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         container.settings.applyLaunchAtLoginPreferenceOnLaunch()
     }
     
-    @objc private func updateStatusIcon() {
-        // Принудительно обновляем иконку
-        statusItem.button?.needsDisplay = true
+    @objc private func handleStatusItemClick(_ sender: AnyObject?) {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp {
+            showContextMenu()
+        } else {
+            togglePopover(sender)
+        }
+    }
+
+    private func showContextMenu() {
+        let menu = NSMenu()
+        
+        let headerItem = NSMenuItem(title: "Заметки TotClone", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+        menu.addItem(NSMenuItem.separator())
+
+        for slot in container.viewModel.slots {
+            let slotNumber = slot.id + 1
+            let trimmed = slot.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let preview = trimmed.isEmpty ? "Пусто" : String(trimmed.prefix(20)).replacingOccurrences(of: "\n", with: " ")
+            let title = "\(slotNumber). \(preview)"
+            
+            let item = NSMenuItem(title: title, action: #selector(selectSlotFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = slot.id
+            if container.viewModel.selectedIndex == slot.id {
+                item.state = .on
+            }
+            menu.addItem(item)
+        }
+
+        menu.addItem(NSMenuItem.separator())
+
+        let openFolderItem = NSMenuItem(title: "Открыть папку в Finder", action: #selector(openFolderFromMenu), keyEquivalent: "")
+        openFolderItem.target = self
+        openFolderItem.isEnabled = container.settings.isFolderReady
+        menu.addItem(openFolderItem)
+
+        let settingsItem = NSMenuItem(title: "Настройки...", action: #selector(showSettingsWindow), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Завершить TotClone", action: #selector(quitApp), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    @objc private func selectSlotFromMenu(_ sender: NSMenuItem) {
+        container.viewModel.select(index: sender.tag)
+        if !popover.isShown && !container.windowState.isDetached {
+            togglePopover(nil)
+        }
+    }
+
+    @objc private func openFolderFromMenu() {
+        container.settings.openFolderInFinder()
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
     }
 
     @objc private func togglePopover(_ sender: AnyObject?) {
@@ -309,8 +270,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     windowState: container.windowState
                 )
             )
+            hosting.view.wantsLayer = true
+            hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
+            let width = container.settings.windowWidth
+            let height = container.settings.windowHeight
             let newWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 720, height: 420),
+                contentRect: NSRect(x: 0, y: 0, width: width, height: height),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
@@ -319,8 +284,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             newWindow.titlebarAppearsTransparent = true
             newWindow.isMovableByWindowBackground = true
             newWindow.isReleasedWhenClosed = false
+            newWindow.isOpaque = false
+            newWindow.backgroundColor = .clear
+            newWindow.hasShadow = true
             newWindow.hidesOnDeactivate = false
-            newWindow.minSize = NSSize(width: 520, height: 320)
+            newWindow.showsResizeIndicator = true
+            newWindow.minSize = NSSize(width: 440, height: 280)
+
+            // Hide standard traffic lights for a clean, seamless floating panel design
+            newWindow.standardWindowButton(.closeButton)?.isHidden = true
+            newWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            newWindow.standardWindowButton(.zoomButton)?.isHidden = true
+
             newWindow.contentViewController = hosting
             newWindow.center()
             newWindow.delegate = self
@@ -343,7 +318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 rootView: SettingsView(settings: container.settings)
             )
             let newWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 420, height: 260),
+                contentRect: NSRect(x: 0, y: 0, width: 440, height: 380),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -357,6 +332,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         settingsWindowController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        guard let window, notification.object as? NSWindow == window else { return }
+        isResizingFromWindow = true
+        container.settings.windowWidth = Double(window.frame.width)
+        container.settings.windowHeight = Double(window.frame.height)
+        isResizingFromWindow = false
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        container.viewModel.flushPendingSaveSynchronously()
     }
 
     func windowWillClose(_ notification: Notification) {

@@ -6,7 +6,7 @@ final class NotesExternalChangeMonitor: @unchecked Sendable {
     private let directoryURL: URL
     private let fileURLs: [URL]
     private let queue = DispatchQueue(label: "TotClone.NotesExternalChangeMonitor", qos: .utility)
-    private let onChange: () -> Void
+    private let onChange: @Sendable () -> Void
     private let debounceDelay: DispatchTimeInterval = .milliseconds(150)
 
     private var directorySource: DispatchSourceFileSystemObject?
@@ -17,7 +17,7 @@ final class NotesExternalChangeMonitor: @unchecked Sendable {
     private var debounceItem: DispatchWorkItem?
     private var rebuildScheduled = false
 
-    init(directoryURL: URL, fileURLs: [URL], onChange: @escaping () -> Void) {
+    init(directoryURL: URL, fileURLs: [URL], onChange: @escaping @Sendable () -> Void) {
         self.directoryURL = directoryURL
         self.fileURLs = fileURLs
         self.onChange = onChange
