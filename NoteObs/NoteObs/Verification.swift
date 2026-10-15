@@ -172,7 +172,9 @@ public enum NotesVerificationSuite {
             VerificationCase(name: "quitting never waits on a write the folder does not answer") { try await testQuittingDoesNotWaitOnAStalledWrite() },
             VerificationCase(name: "typing while a folder is being read never overwrites its notes") { try await testTypingDuringTheFirstReadIsNotWritten() },
             VerificationCase(name: "re-picking the folder never pushes a clean note over a newer one") { try await testRepickingTheFolderKeepsNewerDiskContent() },
-            VerificationCase(name: "typing in one note does not hide an external edit to another") { try await testRefreshAppliesSettledSlotsWhileTyping() }
+            VerificationCase(name: "typing in one note does not hide an external edit to another") { try await testRefreshAppliesSettledSlotsWhileTyping() },
+            VerificationCase(name: "a checklist toggle keeps indentation and touches only the marker") { try await testChecklistToggleKeepsTheLine() },
+            VerificationCase(name: "only the box of a checklist item is a toggle target") { try await testChecklistBoxIsTheOnlyTarget() }
         ]
     }
 
@@ -978,18 +980,22 @@ public enum NotesVerificationSuite {
             return event
         }
 
-        let cmdLeft = try keyDown(.command, 123, "\u{F702}")
-        let cmdRight = try keyDown(.command, 124, "\u{F703}")
+        // Real arrow keys arrive with .numericPad and .function set; the shortcuts must still match.
+        let arrowFlags: NSEvent.ModifierFlags = [.numericPad, .function]
+        let cmdOptionLeft = try keyDown(arrowFlags.union([.command, .option]), 123, "\u{F702}")
+        let cmdOptionRight = try keyDown(arrowFlags.union([.command, .option]), 124, "\u{F703}")
+        let cmdLeft = try keyDown(arrowFlags.union(.command), 123, "\u{F702}")
         let cmdThree = try keyDown(.command, 20, "3")
         let cmdNine = try keyDown(.command, 24, "9")
-        let cmdShiftRight = try keyDown([.command, .shift], 124, "\u{F703}")
+        let cmdShiftOptionRight = try keyDown(arrowFlags.union([.command, .option, .shift]), 124, "\u{F703}")
         let plainLetter = try keyDown([], 0, "a")
 
-        try vexpect(CapturedKey(event: cmdLeft) == .left, "Cmd+Left walks to the previous note")
-        try vexpect(CapturedKey(event: cmdRight) == .right, "Cmd+Right walks to the next note")
+        try vexpect(CapturedKey(event: cmdOptionLeft) == .left, "Cmd+Option+Left walks to the previous note")
+        try vexpect(CapturedKey(event: cmdOptionRight) == .right, "Cmd+Option+Right walks to the next note")
+        try vexpect(CapturedKey(event: cmdLeft) == nil, "Cmd+Left stays with the editor: start of the line")
         try vexpect(CapturedKey(event: cmdThree) == .slot(2), "Cmd+3 jumps to the third note")
         try vexpect(CapturedKey(event: cmdNine) == nil, "a digit without a note behind it is left alone")
-        try vexpect(CapturedKey(event: cmdShiftRight) == nil, "a modified arrow is not a note shortcut")
+        try vexpect(CapturedKey(event: cmdShiftOptionRight) == nil, "selection chords are not note shortcuts")
         try vexpect(CapturedKey(event: plainLetter) == nil, "plain typing reaches the editor")
     }
 
@@ -1494,6 +1500,29 @@ public enum NotesVerificationSuite {
 
         try vexpectEqual(viewModel.slots[1].text, "edited on another Mac", "the other note's external edit is shown")
         try vexpectEqual(viewModel.slots[0].text, "typing in the first note", "the typing is untouched")
+    }
+
+    static func testChecklistToggleKeepsTheLine() async throws {
+        try vexpectEqual(Checklist.toggled("- [ ] buy milk\n"), "- [x] buy milk\n", "an open item is checked")
+        try vexpectEqual(Checklist.toggled("- [x] buy milk"), "- [ ] buy milk", "a checked item is opened")
+        try vexpectEqual(Checklist.toggled("- [X] buy milk"), "- [ ] buy milk", "an upper-case mark counts as checked")
+        try vexpectEqual(Checklist.toggled("    - [ ] nested\n"), "    - [x] nested\n", "indentation is kept")
+        try vexpectEqual(Checklist.toggled("  - plain bullet\n"), "  - [ ] plain bullet\n", "a bullet becomes an item in place")
+        try vexpectEqual(Checklist.toggled("* star bullet"), "- [ ] star bullet", "other bullet marks become items too")
+        try vexpectEqual(Checklist.toggled("just text"), "- [ ] just text", "plain text becomes an item")
+        try vexpectEqual(
+            Checklist.toggled("- [ ] mentions - [ ] inside"),
+            "- [x] mentions - [ ] inside",
+            "only the leading marker changes, not text that looks like one"
+        )
+    }
+
+    static func testChecklistBoxIsTheOnlyTarget() async throws {
+        try vexpectEqual(Checklist.boxRange(in: "- [ ] item"), NSRange(location: 2, length: 3), "the box of an item")
+        try vexpectEqual(Checklist.boxRange(in: "\t- [x] item"), NSRange(location: 3, length: 3), "the box of an indented item")
+        try vexpect(Checklist.boxRange(in: "- plain bullet") == nil, "a bullet has no box")
+        try vexpect(Checklist.boxRange(in: "text - [ ] later") == nil, "a marker mid-line is not a box")
+        try vexpect(!NSLocationInRange(5, Checklist.boxRange(in: "- [ ] item")!), "the space before the text is a caret spot")
     }
 
     static func testRecoveryDirectoryFollowsTheRename() async throws {

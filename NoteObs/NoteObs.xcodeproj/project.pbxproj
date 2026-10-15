@@ -24,6 +24,7 @@
 		B10000000000000000000004 /* RecoveryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* RecoveryStore.swift */; };
 		B10000000000000000000005 /* SettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* SettingsMigration.swift */; };
 		B10000000000000000000006 /* Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* Verification.swift */; };
+		B10000000000000000000007 /* Checklist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* Checklist.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		B20000000000000000000004 /* RecoveryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecoveryStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000005 /* SettingsMigration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsMigration.swift; sourceTree = "<group>"; };
 		B20000000000000000000006 /* Verification.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Verification.swift; sourceTree = "<group>"; };
+		B20000000000000000000007 /* Checklist.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Checklist.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +102,7 @@
 				806523201C5EC03E1CC58EEB /* AppDelegate.swift */,
 				2A3B4C5D6E7F8091A2B3C4D5 /* LaunchAtLoginManager.swift */,
 				77126D84BE2A15D6C6250CC9 /* Views.swift */,
+				B20000000000000000000007 /* Checklist.swift */,
 				B20000000000000000000001 /* MarkdownStyling.swift */,
 				B20000000000000000000002 /* NoteShortcuts.swift */,
 				B20000000000000000000003 /* NotesFolderAccess.swift */,
@@ -186,6 +189,7 @@
 				6AFFA08F77C8F3AD29942605 /* AppDelegate.swift in Sources */,
 				1C4D7A2B3E6F8A9C0D1E2F3A /* LaunchAtLoginManager.swift in Sources */,
 				E01360F890437A1BA8B5F236 /* Views.swift in Sources */,
+				B10000000000000000000007 /* Checklist.swift in Sources */,
 				B10000000000000000000001 /* MarkdownStyling.swift in Sources */,
 				B10000000000000000000002 /* NoteShortcuts.swift in Sources */,
 				B10000000000000000000003 /* NotesFolderAccess.swift in Sources */,

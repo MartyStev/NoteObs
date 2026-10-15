@@ -54,6 +54,11 @@ final class AppContainer {
             }
     }
 
+    /// Tells the shortcut handler which windows hold the notes; every other window keeps its keys.
+    func routeShortcuts(to isNotesWindow: @escaping (NSWindow?) -> Bool) {
+        shortcuts.isNotesWindow = isNotesWindow
+    }
+
     private func configureFileStore() {
         guard let url = settings.folderURLForAccess() else {
             viewModel.detachFileStore()
@@ -242,6 +247,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover.contentSize = NSSize(width: container.settings.windowWidth, height: container.settings.windowHeight)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: contentView)
+        container.routeShortcuts { [weak self] window in
+            guard let self, let window else { return false }
+            return window === self.window || window === self.popover.contentViewController?.view.window
+        }
 
         Publishers.CombineLatest(container.settings.$windowWidth, container.settings.$windowHeight)
             .removeDuplicates { $0 == $1 }

@@ -493,17 +493,7 @@ struct MarkdownTextView: NSViewRepresentable {
             let nsString = textView.string as NSString
             let lineRange = nsString.lineRange(for: selectedRange)
             let line = nsString.substring(with: lineRange)
-
-            var newLine = line
-            if line.contains("- [ ] ") {
-                newLine = line.replacingOccurrences(of: "- [ ] ", with: "- [x] ")
-            } else if line.contains("- [x] ") {
-                newLine = line.replacingOccurrences(of: "- [x] ", with: "- [ ] ")
-            } else if line.hasPrefix("- ") {
-                newLine = "- [ ] " + line.dropFirst(2)
-            } else {
-                newLine = "- [ ] " + line
-            }
+            let newLine = Checklist.toggled(line)
 
             if textView.shouldChangeText(in: lineRange, replacementString: newLine) {
                 textView.replaceCharacters(in: lineRange, with: newLine)
@@ -555,43 +545,19 @@ final class NSTextViewCustom: NSTextView {
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let charIndex = characterIndexForInsertion(at: point)
-        let nsString = string as NSString
+        let hitIndex = characterIndex(under: point)
 
-        if charIndex < nsString.length {
-            let lineRange = nsString.lineRange(for: NSRange(location: charIndex, length: 0))
-            let line = nsString.substring(with: lineRange)
-
-            let offsetInLine = charIndex - lineRange.location
-            if offsetInLine <= 6 {
-                if line.hasPrefix("- [ ] ") {
-                    let newLine = "- [x] " + line.dropFirst(6)
-                    if shouldChangeText(in: lineRange, replacementString: newLine) {
-                        replaceCharacters(in: lineRange, with: newLine)
-                        didChangeText()
-                        return
-                    }
-                } else if line.hasPrefix("- [x] ") {
-                    let newLine = "- [ ] " + line.dropFirst(6)
-                    if shouldChangeText(in: lineRange, replacementString: newLine) {
-                        replaceCharacters(in: lineRange, with: newLine)
-                        didChangeText()
-                        return
-                    }
-                }
-            }
-        }
-
-        // Allow multi-click (double click to select word, triple click to select paragraph)
-        if event.clickCount > 1 {
+        // Multi-click selects words and paragraphs, Shift extends the selection, Control opens the
+        // context menu: all of that is the text view's own behaviour.
+        if event.clickCount > 1 || !event.modifierFlags.isDisjoint(with: [.shift, .control]) {
             super.mouseDown(with: event)
             return
         }
 
-        // Allow shift+click to extend selection
-        if event.modifierFlags.contains(.shift) {
-            super.mouseDown(with: event)
+        if let hitIndex, toggleCheckbox(at: hitIndex) {
             return
         }
+        let link = hitIndex.flatMap { textStorage?.attribute(.link, at: $0, effectiveRange: nil) }
 
         // Direct tracking loop: clicking anywhere (even inside existing selection) immediately starts a new range selection
         setSelectedRange(NSRange(location: charIndex, length: 0))
@@ -603,10 +569,12 @@ final class NSTextViewCustom: NSTextView {
         }
 
         var keepTracking = true
+        var didDrag = false
         while keepTracking {
             guard let nextEvent = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) else { break }
             switch nextEvent.type {
             case .leftMouseDragged:
+                didDrag = true
                 let dragPoint = convert(nextEvent.locationInWindow, from: nil)
                 let currentIndex = characterIndexForInsertion(at: dragPoint)
                 let start = min(anchorIndex, currentIndex)
@@ -616,11 +584,42 @@ final class NSTextViewCustom: NSTextView {
 
             case .leftMouseUp:
                 keepTracking = false
+                // A click that did not turn into a selection follows the link under it, as a link
+                // in any other text view would.
+                if !didDrag, let link, let hitIndex {
+                    clicked(onLink: link, at: hitIndex)
+                }
 
             default:
                 break
             }
         }
+    }
+
+    /// The character drawn under `point`, or nil over empty space — unlike the insertion index,
+    /// which always answers with the nearest caret position.
+    private func characterIndex(under point: NSPoint) -> Int? {
+        guard let layoutManager, let textContainer else { return nil }
+        let containerPoint = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: textContainer)
+        guard glyphRect.contains(containerPoint) else { return nil }
+        let index = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        return index < (string as NSString).length ? index : nil
+    }
+
+    /// Toggles the checklist item whose box is under the click. Answers whether it did.
+    private func toggleCheckbox(at index: Int) -> Bool {
+        let nsString = string as NSString
+        let lineRange = nsString.lineRange(for: NSRange(location: index, length: 0))
+        let line = nsString.substring(with: lineRange)
+        guard let box = Checklist.boxRange(in: line),
+              NSLocationInRange(index - lineRange.location, box) else { return false }
+        let newLine = Checklist.toggled(line)
+        guard shouldChangeText(in: lineRange, replacementString: newLine) else { return false }
+        replaceCharacters(in: lineRange, with: newLine)
+        didChangeText()
+        return true
     }
 
     override func dragSelection(with event: NSEvent, offset: NSSize, slideBack: Bool) -> Bool {
