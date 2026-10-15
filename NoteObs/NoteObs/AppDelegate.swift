@@ -37,15 +37,13 @@ final class AppContainer {
 
         shortcuts.start(viewModel: viewModel)
 
+        // A @Published property hands its current value to a new subscriber, so this also opens the
+        // folder an earlier run saved. Calling configureFileStore() here as well would open it twice.
         folderCancellable = settings.$notesFolderPath
             .removeDuplicates()
             .sink { [weak self] _ in
                 self?.configureFileStore()
             }
-
-        // Combine does not replay the value a @Published property was initialised with, so a folder
-        // saved by an earlier run has to be opened explicitly or the app starts without one.
-        configureFileStore()
 
         // Text a previous session could not write is the user's call, not ours: ask, never merge
         // it into a note or throw it away silently.

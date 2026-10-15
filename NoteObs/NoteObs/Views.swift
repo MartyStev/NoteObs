@@ -426,15 +426,26 @@ struct MarkdownTextView: NSViewRepresentable {
             let selectedRanges = Self.clamp(textView.selectedRanges, toLength: newLength)
             textView.string = text
             textView.selectedRanges = selectedRanges
+            // The buffer now holds another note, or the folder's newer copy. Undo steps recorded
+            // against the old text would replay at offsets that mean something else here.
+            textView.undoManager?.removeAllActions()
             context.coordinator.applyMarkdownStyling(to: textView, forcingFullPass: true)
         }
 
-        textView.font = font
-        textView.textColor = NSColor.labelColor
-        textView.insertionPointColor = NSColor.labelColor
-        textView.selectedTextAttributes = [
-            .backgroundColor: theme.selectionColor
-        ]
+        // These run on every keystroke, and setting the font re-attributes the whole document, so
+        // they are only touched when they actually change.
+        if textView.font != font {
+            textView.font = font
+        }
+        if textView.textColor != NSColor.labelColor {
+            textView.textColor = NSColor.labelColor
+            textView.insertionPointColor = NSColor.labelColor
+        }
+        if textView.selectedTextAttributes[.backgroundColor] as? NSColor != theme.selectionColor {
+            textView.selectedTextAttributes = [
+                .backgroundColor: theme.selectionColor
+            ]
+        }
     }
 
     private static func clamp(_ selectedRanges: [Any], toLength length: Int) -> [NSValue] {
@@ -528,10 +539,13 @@ struct MarkdownTextView: NSViewRepresentable {
 final class NSTextViewCustom: NSTextView {
     var onToggleCheckboxShortcut: (() -> Void)?
 
+    private static let keyCodeC: UInt16 = 8
+
     override func keyDown(with event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        // Cmd + Shift + C for toggling checkbox
-        if flags == [.command, .shift] && event.charactersIgnoringModifiers?.lowercased() == "c" {
+        // Cmd + Shift + C toggles a checkbox. Matched by key position, not character: on the Russian
+        // layout the same key types "с", and the shortcut has to work there too.
+        if flags == [.command, .shift] && event.keyCode == Self.keyCodeC {
             onToggleCheckboxShortcut?()
             return
         }

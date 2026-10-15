@@ -277,7 +277,14 @@ final class AppSettings: ObservableObject {
                 pathKey: Self.userDefaultsKey,
                 bookmarkKey: Self.bookmarkKey
             )
-            self?.notesFolderPath = url.path
+            guard let self else { return }
+            // Picking the folder already in use is how access gets confirmed, but the path does not
+            // change, so the folder publisher stays silent: reopen it explicitly.
+            let isSameFolder = self.notesFolderPath == url.path
+            self.notesFolderPath = url.path
+            if isSameFolder {
+                self.retryFolderAccess()
+            }
         }
     }
 
