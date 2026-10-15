@@ -82,15 +82,15 @@ struct VisualEffectView: NSViewRepresentable {
 // MARK: - Main Content View
 
 struct ContentView: View {
-    @ObservedObject var viewModel: NotesViewModel
+    /// Not observed here: the header and the editor watch the notes themselves, so a keystroke
+    /// re-renders them, not the whole window.
+    let viewModel: NotesViewModel
     @ObservedObject var settings: AppSettings
     @ObservedObject var windowState: WindowState
 
-    private var theme: NoteTheme {
-        NoteTheme(baseColor: settings.themeColor)
-    }
-
     var body: some View {
+        // Built once per render; every subview below reads the same colours.
+        let theme = NoteTheme(baseColor: settings.themeColor)
         ZStack(alignment: .bottomTrailing) {
             ZStack {
                 VisualEffectView(material: settings.blurMaterial.nsMaterial, blendingMode: .behindWindow)
@@ -184,7 +184,7 @@ struct HeaderBarView: View {
                     Label("не сохраняется", systemImage: "exclamationmark.arrow.circlepath")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .help("Текст ещё не записан в папку заметок. Он сохранён отдельно и будет записан, когда папка ответит.")
+                        .help("Текст ещё не записан в папку с заметками. Он сохранён отдельно и будет записан, когда папка ответит.")
                 }
                 Spacer()
             }
@@ -202,7 +202,8 @@ struct SlotSelectorView: View {
         HStack(spacing: 4) {
             ForEach(slots) { slot in
                 let isActive = selectedIndex == slot.id
-                let hasContent = !slot.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                // Stops at the first visible character instead of trimming the whole note per keystroke.
+                let hasContent = slot.text.contains { !$0.isWhitespace }
                 let slotColor = Color(slot.color)
 
                 Button {
@@ -234,6 +235,10 @@ struct SlotSelectorView: View {
                     .shadow(color: isActive ? slotColor.opacity(0.5) : .clear, radius: 4, x: 0, y: 0)
                 }
                 .buttonStyle(.plain)
+                .help("Заметка \(slot.id + 1) (⌘\(slot.id + 1))")
+                .accessibilityLabel("Заметка \(slot.id + 1)")
+                .accessibilityValue(hasContent ? "есть текст" : "пустая")
+                .accessibilityAddTraits(isActive ? .isSelected : [])
             }
         }
     }
@@ -254,7 +259,7 @@ struct WindowActionsView: View {
 
             HeaderIconButton(
                 systemName: windowState.isPinned ? "pin.fill" : "pin",
-                tooltip: "Закрепить поверх всех окон",
+                tooltip: windowState.isPinned ? "Открепить" : "Закрепить поверх всех окон",
                 theme: theme,
                 disabled: !windowState.isDetached,
                 action: { windowState.isPinned.toggle() }
@@ -294,6 +299,7 @@ struct HeaderIconButton: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .help(tooltip)
+        .accessibilityLabel(tooltip)
         .onHover { isHovered = $0 }
     }
 }
@@ -639,7 +645,7 @@ struct FolderNoticeView: View {
         HStack(spacing: 8) {
             Image(systemName: "lock.marks.rectangle")
                 .font(.system(size: 11))
-            Text("Доступ к папке ещё не подтверждён. Текст сохраняется в теневую копию.")
+            Text("Доступ к папке ещё не подтверждён. Набранный текст сохраняется отдельно.")
                 .font(.system(size: 11))
                 .foregroundColor(textColor.opacity(0.8))
             Spacer(minLength: 6)
@@ -699,10 +705,10 @@ struct EmptyFolderStateView: View {
 
     private var title: String {
         switch settings.folderState {
-        case .unconfigured: return "Папка для заметок не выбрана"
+        case .unconfigured: return "Папка с заметками не выбрана"
         case .available: return ""
         case .awaitingAccess: return ""
-        case .inaccessible: return "Не удается получить доступ к папке заметок"
+        case .inaccessible: return "Не удаётся получить доступ к папке с заметками"
         case .unreadableNotes: return "Некоторые заметки в папке не читаются"
         }
     }
@@ -736,7 +742,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 14) {
             // Folder Section
-            SettingsCardView(title: "Папка заметок", icon: "folder.fill") {
+            SettingsCardView(title: "Папка с заметками", icon: "folder.fill") {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(settings.hasFolderSelection ? settings.notesFolderPath : "Папка не выбрана")
                         .font(.system(size: 11.5))
@@ -764,7 +770,7 @@ struct SettingsView: View {
                         Text("Гарнитура:")
                             .font(.system(size: 12))
                         Spacer()
-                        Picker("", selection: $settings.fontFamily) {
+                        Picker("Гарнитура", selection: $settings.fontFamily) {
                             ForEach(AppFontFamily.allCases) { family in
                                 Text(family.displayName).tag(family)
                             }
@@ -794,7 +800,7 @@ struct SettingsView: View {
                         Text("Цвет темы окна:")
                             .font(.system(size: 12))
                         Spacer()
-                        ColorPicker("", selection: Binding(
+                        ColorPicker("Цвет темы окна", selection: Binding(
                             get: { Color(nsColor: settings.themeColor) },
                             set: { settings.setThemeColor(from: $0) }
                         ))
@@ -805,7 +811,7 @@ struct SettingsView: View {
                         Text("Стиль матового стекла:")
                             .font(.system(size: 12))
                         Spacer()
-                        Picker("", selection: $settings.blurMaterial) {
+                        Picker("Стиль матового стекла", selection: $settings.blurMaterial) {
                             ForEach(BlurMaterial.allCases) { material in
                                 Text(material.displayName).tag(material)
                             }
@@ -821,6 +827,8 @@ struct SettingsView: View {
                         Spacer()
                         Slider(value: $settings.backgroundOpacity, in: 0.0...1.0, step: 0.05)
                             .frame(width: 130)
+                            .accessibilityLabel("Непрозрачность цвета")
+                            .accessibilityValue("\(Int(round(settings.backgroundOpacity * 100))) процентов")
                         Text("\(Int(round(settings.backgroundOpacity * 100)))%")
                             .font(.system(size: 12, weight: .medium))
                             .monospacedDigit()
@@ -971,8 +979,12 @@ struct ResizeCornerHandle: View {
             .animation(.easeInOut(duration: 0.15), value: isHovered)
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }
+            // Width and height are also steppers in Settings; this corner is a pointer shortcut only.
+            .accessibilityHidden(true)
             .gesture(
-                DragGesture(minimumDistance: 1)
+                // Measured in screen space: the handle moves with the window it resizes, so a
+                // local translation would chase its own movement and jitter.
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { gesture in
                         if dragInitialSize == nil {
                             dragInitialSize = CGSize(width: settings.windowWidth, height: settings.windowHeight)

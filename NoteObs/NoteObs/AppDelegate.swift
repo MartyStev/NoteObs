@@ -2,6 +2,17 @@ import AppKit
 import Combine
 import SwiftUI
 
+extension NSApplication {
+    /// `activate(ignoringOtherApps:)` is deprecated from macOS 14, where `activate()` replaces it.
+    func bringToFront() {
+        if #available(macOS 14, *) {
+            activate()
+        } else {
+            activate(ignoringOtherApps: true)
+        }
+    }
+}
+
 extension Notification.Name {
     static let openSettingsWindow = Notification.Name("openSettingsWindow")
 }
@@ -95,7 +106,7 @@ final class AppContainer {
             let alert = NSAlert()
             alert.messageText = "Есть текст, который не записался в папку"
             alert.informativeText = Self.describe(offers)
-                + "\n\nПрошлая сессия завершилась, пока запись в папку заметок не удалась."
+                + "\n\nПрошлая сессия завершилась, пока запись в папку с заметками не удалась."
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Восстановить")
             alert.addButton(withTitle: "Оставить то, что в папке")
@@ -118,7 +129,7 @@ final class AppContainer {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "\n", with: " ")
             let shortened = preview.count > 60 ? String(preview.prefix(60)) + "…" : preview
-            return "Слот \(offer.index + 1): \(shortened.isEmpty ? "(пусто)" : shortened)"
+            return "Заметка \(offer.index + 1): \(shortened.isEmpty ? "(пусто)" : shortened)"
         }
         .joined(separator: "\n")
     }
@@ -159,8 +170,8 @@ final class AppContainer {
             let alert = NSAlert()
             alert.messageText = "Не удалось прочитать заметки в папке"
             alert.informativeText = """
-            Файлы слотов: \(names). Они есть в папке, но не читаются — это не UTF-8, вместо файла \
-            лежит каталог, либо синхронизация ещё не принесла содержимое.
+            Заметки: \(names). Их файлы есть в папке, но не читаются: это не текст в UTF-8, \
+            либо синхронизация ещё не принесла содержимое.
 
             Запись в папку остановлена, чтобы не затереть эти файлы. Набранный сейчас текст \
             сохраняется отдельно. Исправьте файлы или дождитесь синхронизации и повторите.
@@ -195,10 +206,10 @@ final class AppContainer {
             alert.messageText = "Нет ответа от папки с заметками"
             alert.informativeText = """
             macOS не подтвердила доступ этой версии приложения к папке, и чтение стоит на месте. \
-            Заметки по-прежнему пишутся в теневую копию, ничего не потеряется.
+            Набранный текст сохраняется отдельно, ничего не потеряется.
 
             Выберите папку ещё раз — это подтверждает доступ — или разрешите его в \
-            «Системные настройки → Конфиденциальность → Файлы и папки».
+            «Системные настройки → Конфиденциальность и безопасность → Файлы и папки».
             """
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Выбрать папку")
@@ -341,7 +352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         openFolderItem.isEnabled = container.settings.canOpenFolderInFinder
         menu.addItem(openFolderItem)
 
-        let settingsItem = NSMenuItem(title: "Настройки...", action: #selector(showSettingsWindow), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: "Настройки…", action: #selector(showSettingsWindow), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
 
@@ -459,7 +470,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshFromDiskSoon()
         applyPin(container.windowState.isPinned)
         windowController?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.bringToFront()
     }
 
     private func closeWindow() {
@@ -485,7 +496,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindowController = NSWindowController(window: newWindow)
         }
         settingsWindowController?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.bringToFront()
     }
 
     func windowDidResize(_ notification: Notification) {

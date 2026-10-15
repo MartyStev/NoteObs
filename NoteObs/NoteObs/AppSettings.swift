@@ -259,13 +259,13 @@ final class AppSettings: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Выбрать"
-        panel.message = "Выберите папку для хранения заметок"
+        panel.message = "Выберите папку с заметками"
         if !notesFolderPath.isEmpty {
             // Re-picking the folder it already points at is the one click that restores access.
             panel.directoryURL = URL(fileURLWithPath: notesFolderPath, isDirectory: true)
         }
         // A menu bar app has no windows of its own; without this the panel can open behind others.
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.bringToFront()
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
 
