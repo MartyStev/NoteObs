@@ -96,7 +96,7 @@ struct ContentView: View {
                 VisualEffectView(material: settings.blurMaterial.nsMaterial, blendingMode: .behindWindow)
                 theme.backgroundColor.opacity(settings.backgroundOpacity)
 
-                if settings.isFolderReady {
+                if settings.isEditorUsable {
                     VStack(spacing: 6) {
                         HeaderBarView(
                             viewModel: viewModel,
@@ -105,6 +105,11 @@ struct ContentView: View {
                         )
                         .padding(.top, 6)
                         .padding(.horizontal, 10)
+
+                        if !settings.isFolderReady {
+                            FolderNoticeView(settings: settings, textColor: theme.textColor)
+                                .padding(.horizontal, 10)
+                        }
 
                         NoteEditorView(
                             viewModel: viewModel,
@@ -138,24 +143,6 @@ struct ContentView: View {
             minHeight: 280,
             idealHeight: CGFloat(settings.windowHeight),
             maxHeight: .infinity
-        )
-        .background(
-            KeyCaptureView { key in
-                switch key {
-                case .left:
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                        viewModel.moveSelection(delta: -1)
-                    }
-                case .right:
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                        viewModel.moveSelection(delta: 1)
-                    }
-                case .slot(let index):
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                        viewModel.select(index: index)
-                    }
-                }
-            }
         )
     }
 }
@@ -439,7 +426,7 @@ struct MarkdownTextView: NSViewRepresentable {
             let selectedRanges = Self.clamp(textView.selectedRanges, toLength: newLength)
             textView.string = text
             textView.selectedRanges = selectedRanges
-            context.coordinator.applyMarkdownStyling(to: textView)
+            context.coordinator.applyMarkdownStyling(to: textView, forcingFullPass: true)
         }
 
         textView.font = font
@@ -463,6 +450,7 @@ struct MarkdownTextView: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownTextView
         weak var textView: NSTextViewCustom?
+        private var stylingTracker = MarkdownStylingTracker()
 
         init(_ parent: MarkdownTextView) {
             self.parent = parent
@@ -512,31 +500,27 @@ struct MarkdownTextView: NSViewRepresentable {
             }
         }
 
-        func applyMarkdownStyling(to textView: NSTextView) {
+        /// Styling is incremental: a keystroke re-attributes its own paragraph, plus the one after it
+        /// when the edit moved a line break. A first pass, a font swap, a slot switch or a change
+        /// bigger than the tracker's threshold re-attributes the whole document.
+        func applyMarkdownStyling(to textView: NSTextView, forcingFullPass: Bool = false) {
             guard let textStorage = textView.textStorage else { return }
-            // Re-attributing the whole buffer mid-composition discards pending input-method characters.
+            // Re-attributing the buffer mid-composition discards pending input-method characters.
             guard !textView.hasMarkedText() else { return }
-            let string = textStorage.string
-            let fullRange = NSRange(location: 0, length: textStorage.length)
-            guard fullRange.length > 0 else { return }
+            let current = textStorage.string as NSString
+            guard let target = stylingTracker.rangeToRestyle(
+                in: current,
+                font: parent.font,
+                forcingFullPass: forcingFullPass
+            ) else { return }
 
-            textStorage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
-            textStorage.addAttribute(.font, value: parent.font, range: fullRange)
-
-            // Detect URLs including obsidian://, mailto:, http, https
-            let urlPattern = #"(?:https?://|obsidian://|mailto:)[^\s<>"'`]+"#
-            if let regex = try? NSRegularExpression(pattern: urlPattern, options: .caseInsensitive) {
-                let matches = regex.matches(in: string, range: fullRange)
-                for match in matches {
-                    if let range = Range(match.range, in: string) {
-                        let urlStr = String(string[range])
-                        if let url = URL(string: urlStr) {
-                            textStorage.addAttribute(.link, value: url, range: match.range)
-                            textStorage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: match.range)
-                        }
-                    }
-                }
-            }
+            MarkdownStyling.applyStyling(
+                to: textStorage,
+                text: current,
+                target: target,
+                font: parent.font,
+                color: NSColor.labelColor
+            )
         }
     }
 }
@@ -632,6 +616,34 @@ final class NSTextViewCustom: NSTextView {
 
 // MARK: - Empty State and Borders
 
+/// A strip above the editor for the one folder state that still lets the user work: the notes are
+/// open, the folder simply has not answered yet.
+struct FolderNoticeView: View {
+    @ObservedObject var settings: AppSettings
+    let textColor: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.marks.rectangle")
+                .font(.system(size: 11))
+            Text("Доступ к папке ещё не подтверждён. Текст сохраняется в теневую копию.")
+                .font(.system(size: 11))
+                .foregroundColor(textColor.opacity(0.8))
+            Spacer(minLength: 6)
+            Button("Проверить") {
+                settings.retryFolderAccess()
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(textColor.opacity(0.08))
+        )
+    }
+}
+
 struct EmptyFolderStateView: View {
     @ObservedObject var settings: AppSettings
     let textColor: Color
@@ -651,10 +663,23 @@ struct EmptyFolderStateView: View {
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
             }
-            Button(buttonTitle) {
-                settings.promptForFolder()
+            if settings.folderState == .unreadableNotes {
+                // The folder is right; its files need repair or the sync to finish.
+                HStack(spacing: 8) {
+                    Button("Проверить снова") {
+                        settings.retryFolderAccess()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Открыть в Finder") {
+                        settings.openFolderInFinder()
+                    }
+                }
+            } else {
+                Button(buttonTitle) {
+                    settings.promptForFolder()
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
         .padding(20)
     }
@@ -663,7 +688,9 @@ struct EmptyFolderStateView: View {
         switch settings.folderState {
         case .unconfigured: return "Папка для заметок не выбрана"
         case .available: return ""
+        case .awaitingAccess: return ""
         case .inaccessible: return "Не удается получить доступ к папке заметок"
+        case .unreadableNotes: return "Некоторые заметки в папке не читаются"
         }
     }
 
@@ -671,7 +698,9 @@ struct EmptyFolderStateView: View {
         switch settings.folderState {
         case .unconfigured: return "Выберите папку в настройках."
         case .available: return ""
+        case .awaitingAccess: return "macOS ещё не разрешила доступ к папке."
         case .inaccessible: return "Выберите папку заново или проверьте права доступа."
+        case .unreadableNotes: return "Запись в папку остановлена, чтобы не затереть эти файлы."
         }
     }
 
@@ -679,99 +708,9 @@ struct EmptyFolderStateView: View {
         switch settings.folderState {
         case .unconfigured: return "Выбрать папку"
         case .available: return ""
+        case .awaitingAccess: return "Выбрать папку заново"
         case .inaccessible: return "Выбрать другую папку"
-        }
-    }
-}
-
-struct WindowBordersView: View {
-    let lineColor: Color
-
-    var body: some View {
-        VStack {
-            HStack {
-                Rectangle().fill(lineColor).frame(width: 1)
-                Spacer()
-                Rectangle().fill(lineColor).frame(width: 1)
-            }
-            Spacer()
-            Rectangle().fill(lineColor).frame(height: 1)
-        }
-    }
-}
-
-// MARK: - Key Events & Helpers
-
-enum CapturedKey {
-    case left
-    case right
-    case slot(Int)
-}
-
-struct KeyCaptureView: NSViewRepresentable {
-    let onKey: (CapturedKey) -> Void
-
-    func makeNSView(context: Context) -> KeyCaptureNSView {
-        let view = KeyCaptureNSView()
-        view.onKey = onKey
-        return view
-    }
-
-    func updateNSView(_ nsView: KeyCaptureNSView, context: Context) {
-        nsView.onKey = onKey
-    }
-}
-
-final class KeyCaptureNSView: NSView {
-    var onKey: ((CapturedKey) -> Void)?
-    private var localMonitor: Any?
-
-    override var acceptsFirstResponder: Bool { false }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil {
-            if localMonitor == nil {
-                localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                    guard let self else { return event }
-                    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-
-                    // Cmd + 1...7: Direct note switching
-                    if flags == .command, let chars = event.characters, let digit = Int(chars), (1...7).contains(digit) {
-                        self.onKey?(.slot(digit - 1))
-                        return nil
-                    }
-
-                    // Cmd + Left / Cmd + Right: Note switching
-                    if flags == .command {
-                        if event.keyCode == 123 { // Left arrow
-                            self.onKey?(.left)
-                            return nil
-                        } else if event.keyCode == 124 { // Right arrow
-                            self.onKey?(.right)
-                            return nil
-                        }
-                    }
-
-                    return event
-                }
-            }
-        } else {
-            removeMonitor()
-        }
-    }
-
-    override func viewWillMove(toWindow newWindow: NSWindow?) {
-        super.viewWillMove(toWindow: newWindow)
-        if newWindow == nil {
-            removeMonitor()
-        }
-    }
-
-    private func removeMonitor() {
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
+        case .unreadableNotes: return ""
         }
     }
 }
@@ -800,7 +739,7 @@ struct SettingsView: View {
                         Button("Открыть в Finder") {
                             settings.openFolderInFinder()
                         }
-                        .disabled(!settings.isFolderReady)
+                        .disabled(!settings.canOpenFolderInFinder)
                     }
                 }
             }

@@ -6,6 +6,14 @@ struct NoteSlot: Identifiable, Equatable {
     var text: String
 }
 
+/// Text a previous session never managed to write into the notes folder, waiting on the user's
+/// decision: put it back, or leave the folder's copy alone.
+struct RecoveryOffer: Identifiable, Equatable {
+    let index: Int
+    let text: String
+    var id: Int { index }
+}
+
 enum NotesFileStoreError: Error, Equatable {
     case folderMissing
     case notDirectory

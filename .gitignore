@@ -1,0 +1,3 @@
+# Built release artifacts (NoteObs.app, .dmg, .zip) are produced by `make release-app`.
+/dist
+.DS_Store

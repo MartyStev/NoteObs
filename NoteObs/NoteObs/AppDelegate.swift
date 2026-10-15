@@ -14,34 +14,107 @@ final class AppContainer {
     let windowState = WindowState()
 
     private var folderCancellable: AnyCancellable?
+    private var recoveryCancellable: AnyCancellable?
+    private let shortcuts = NoteShortcutMonitor()
     private var isShowingFolderAlert = false
+    private var isShowingRecoveryAlert = false
+    private var isShowingUnreadableAlert = false
+    private var hasWarnedAboutStalledFolder = false
 
     private init() {
         viewModel.fileErrorHandler = { [weak self] in
             self?.handleInvalidFolder()
         }
+        viewModel.folderStalledHandler = { [weak self] in
+            self?.handleStalledFolder()
+        }
+        viewModel.folderUnreadableHandler = { [weak self] slotIndices in
+            self?.handleUnreadableSlots(slotIndices)
+        }
+        settings.folderRetryHandler = { [weak self] in
+            self?.configureFileStore()
+        }
+
+        shortcuts.start(viewModel: viewModel)
 
         folderCancellable = settings.$notesFolderPath
-            .sink { [weak self] path in
-                self?.configureFileStore(path: path)
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.configureFileStore()
+            }
+
+        // Combine does not replay the value a @Published property was initialised with, so a folder
+        // saved by an earlier run has to be opened explicitly or the app starts without one.
+        configureFileStore()
+
+        // Text a previous session could not write is the user's call, not ours: ask, never merge
+        // it into a note or throw it away silently.
+        recoveryCancellable = viewModel.$recoveryOffers
+            .sink { [weak self] offers in
+                guard !offers.isEmpty else { return }
+                self?.presentRecoveryAlert()
             }
     }
 
-    private func configureFileStore(path: String) {
-        guard !path.isEmpty else {
+    private func configureFileStore() {
+        guard let url = settings.folderURLForAccess() else {
             viewModel.detachFileStore()
             settings.setFolderState(.unconfigured)
             return
         }
         do {
-            let store = try NotesFileStore(path: path)
-            viewModel.attachFileStore(store)
+            // The URL may carry a security scope; the store releases it again when it is dropped.
+            let store = try NotesFileStore(url: url, securingAccess: true)
             settings.setFolderState(.available)
+            // Reading the folder happens off the main actor, so this cannot block first paint.
+            Task { await viewModel.attachFileStore(store) }
         } catch {
             viewModel.detachFileStore()
             settings.setFolderState(.inaccessible)
             handleInvalidFolder()
         }
+    }
+
+    /// Offers the text the previous session could not write into the folder.
+    ///
+    /// The whole pending list is decided at once: the offers land together while the folder is
+    /// being read, and answering them one by one would re-raise an alert the user has settled.
+    private func presentRecoveryAlert() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isShowingRecoveryAlert else { return }
+            let offers = self.viewModel.recoveryOffers
+            guard !offers.isEmpty else { return }
+            self.isShowingRecoveryAlert = true
+
+            let alert = NSAlert()
+            alert.messageText = "Есть текст, который не записался в папку"
+            alert.informativeText = Self.describe(offers)
+                + "\n\nПрошлая сессия завершилась, пока запись в папку заметок не удалась."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Восстановить")
+            alert.addButton(withTitle: "Оставить то, что в папке")
+
+            let response = alert.runModal()
+            self.isShowingRecoveryAlert = false
+            let stillOffered = offers.filter { self.viewModel.recoveryOffers.contains($0) }
+            switch response {
+            case .alertFirstButtonReturn:
+                for offer in stillOffered { self.viewModel.acceptRecovery(offer) }
+            default:
+                for offer in stillOffered { self.viewModel.declineRecovery(offer) }
+            }
+        }
+    }
+
+    private static func describe(_ offers: [RecoveryOffer]) -> String {
+        offers.map { offer in
+            let preview = offer.text
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+            let shortened = preview.count > 60 ? String(preview.prefix(60)) + "…" : preview
+            return "Слот \(offer.index + 1): \(shortened.isEmpty ? "(пусто)" : shortened)"
+        }
+        .joined(separator: "\n")
     }
 
     private func handleInvalidFolder() {
@@ -60,6 +133,71 @@ final class AppContainer {
             alert.addButton(withTitle: "Отмена")
             let response = alert.runModal()
             self.isShowingFolderAlert = false
+            if response == .alertFirstButtonReturn {
+                self.settings.promptForFolder()
+            }
+        }
+    }
+
+    /// A note file exists but cannot be read. The folder stays closed so the file is never replaced
+    /// by a blank note; whatever is typed meanwhile is kept outside the folder.
+    private func handleUnreadableSlots(_ slotIndices: [Int]) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            // The state is set even when the alert is already up: it is what keeps the editor closed.
+            self.settings.setFolderState(.unreadableNotes)
+            guard !self.isShowingUnreadableAlert else { return }
+            self.isShowingUnreadableAlert = true
+
+            let names = slotIndices.map { "\($0 + 1)" }.joined(separator: ", ")
+            let alert = NSAlert()
+            alert.messageText = "Не удалось прочитать заметки в папке"
+            alert.informativeText = """
+            Файлы слотов: \(names). Они есть в папке, но не читаются — это не UTF-8, вместо файла \
+            лежит каталог, либо синхронизация ещё не принесла содержимое.
+
+            Запись в папку остановлена, чтобы не затереть эти файлы. Набранный сейчас текст \
+            сохраняется отдельно. Исправьте файлы или дождитесь синхронизации и повторите.
+            """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Повторить")
+            alert.addButton(withTitle: "Открыть в Finder")
+            alert.addButton(withTitle: "Позже")
+            let response = alert.runModal()
+            self.isShowingUnreadableAlert = false
+            switch response {
+            case .alertFirstButtonReturn:
+                self.configureFileStore()
+            case .alertSecondButtonReturn:
+                self.settings.openFolderInFinder()
+            default:
+                break
+            }
+        }
+    }
+
+    /// The folder is there but silent, which in practice means macOS is still deciding whether this
+    /// copy of the app may read it. Re-picking the folder is what answers that question.
+    private func handleStalledFolder() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.settings.setFolderState(.awaitingAccess)
+            guard !self.hasWarnedAboutStalledFolder else { return }
+            self.hasWarnedAboutStalledFolder = true
+
+            let alert = NSAlert()
+            alert.messageText = "Нет ответа от папки с заметками"
+            alert.informativeText = """
+            macOS не подтвердила доступ этой версии приложения к папке, и чтение стоит на месте. \
+            Заметки по-прежнему пишутся в теневую копию, ничего не потеряется.
+
+            Выберите папку ещё раз — это подтверждает доступ — или разрешите его в \
+            «Системные настройки → Конфиденциальность → Файлы и папки».
+            """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Выбрать папку")
+            alert.addButton(withTitle: "Позже")
+            let response = alert.runModal()
             if response == .alertFirstButtonReturn {
                 self.settings.promptForFolder()
             }
@@ -86,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         if let button = statusItem.button {
             let configuration = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-            let image = NSImage(systemSymbolName: "circle", accessibilityDescription: "TotClone")?
+            let image = NSImage(systemSymbolName: "circle", accessibilityDescription: "NoteObs")?
                 .withSymbolConfiguration(configuration)
             image?.isTemplate = true
             button.image = image
@@ -166,7 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func showContextMenu() {
         let menu = NSMenu()
         
-        let headerItem = NSMenuItem(title: "Заметки TotClone", action: nil, keyEquivalent: "")
+        let headerItem = NSMenuItem(title: "Заметки NoteObs", action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         menu.addItem(headerItem)
         menu.addItem(NSMenuItem.separator())
@@ -190,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let openFolderItem = NSMenuItem(title: "Открыть папку в Finder", action: #selector(openFolderFromMenu), keyEquivalent: "")
         openFolderItem.target = self
-        openFolderItem.isEnabled = container.settings.isFolderReady
+        openFolderItem.isEnabled = container.settings.canOpenFolderInFinder
         menu.addItem(openFolderItem)
 
         let settingsItem = NSMenuItem(title: "Настройки...", action: #selector(showSettingsWindow), keyEquivalent: ",")
@@ -199,7 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: "Завершить TotClone", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Завершить NoteObs", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -225,7 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func togglePopover(_ sender: AnyObject?) {
         if container.windowState.isDetached {
-            container.viewModel.refreshFromDisk()
+            refreshFromDiskSoon()
             showWindow()
             return
         }
@@ -233,9 +371,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
-            container.viewModel.refreshFromDisk()
+            refreshFromDiskSoon()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
+    }
+
+    /// The editor opens with whatever is already in memory; the folder read lands a moment later
+    /// instead of holding up the popover.
+    private func refreshFromDiskSoon() {
+        Task { await container.viewModel.refreshFromDisk() }
     }
 
     private func applyDetach(_ detached: Bool) {
@@ -302,7 +446,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window = newWindow
             windowController = NSWindowController(window: newWindow)
         }
-        container.viewModel.refreshFromDisk()
+        refreshFromDiskSoon()
         applyPin(container.windowState.isPinned)
         windowController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -343,7 +487,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Mirrors land first: the write below is the one that can stall on an unreachable folder,
+        // and the text has to be safe before it does.
+        container.viewModel.settleRecoveryForTermination()
         container.viewModel.flushPendingSaveSynchronously()
+        container.viewModel.settleRecoveryForTermination()
     }
 
     func windowWillClose(_ notification: Notification) {

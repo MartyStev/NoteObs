@@ -4,19 +4,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "TotClone",
+    name: "NoteObs",
     platforms: [
         .macOS(.v13)
     ],
     targets: [
         .executableTarget(
-            name: "TotClone",
-            path: "TotClone",
+            name: "NoteObs",
+            path: "NoteObs",
             exclude: ["Info.plist"]
         ),
         .testTarget(
-            name: "TotCloneTests",
-            dependencies: ["TotClone"]
+            name: "NoteObsTests",
+            dependencies: ["NoteObs"]
         )
     ]
 )

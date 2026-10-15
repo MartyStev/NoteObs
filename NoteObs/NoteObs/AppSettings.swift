@@ -6,6 +6,12 @@ enum NotesFolderState {
     case unconfigured
     case available
     case inaccessible
+    /// The folder is known and selected, but macOS has not answered a single read from it: the
+    /// system is holding the request for a consent decision the app is never told about.
+    case awaitingAccess
+    /// The folder opens, but some note files in it will not read. Nothing is written into it until
+    /// they do, and the user needs the folder itself to repair them.
+    case unreadableNotes
 }
 
 enum AppFontFamily: String, CaseIterable, Identifiable {
@@ -96,12 +102,6 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var showWordCount: Bool {
-        didSet {
-            UserDefaults.standard.set(showWordCount, forKey: Self.showWordCountKey)
-        }
-    }
-
     @Published var backgroundOpacity: Double {
         didSet {
             UserDefaults.standard.set(backgroundOpacity, forKey: Self.backgroundOpacityKey)
@@ -155,43 +155,31 @@ final class AppSettings: ObservableObject {
     static let launchAtLoginKey = "launchAtLoginEnabled"
     static let fontSizeKey = "editorFontSize"
     static let fontFamilyKey = "editorFontFamily"
-    static let showWordCountKey = "showWordCount"
     static let backgroundOpacityKey = "backgroundOpacity"
     static let blurMaterialKey = "blurMaterial"
     static let windowWidthKey = "windowWidth"
     static let windowHeightKey = "windowHeight"
 
+    /// Everything the app saves about itself, as opposed to the AppKit window positions it also owns.
+    static let persistedKeys = [
+        userDefaultsKey, bookmarkKey, themeColorKey, launchAtLoginKey, fontSizeKey, fontFamilyKey,
+        backgroundOpacityKey, blurMaterialKey, windowWidthKey, windowHeightKey
+    ]
+
     private var isInternalLaunchAtLoginUpdate = false
     private var launchAtLoginApplyTask: Task<Void, Never>?
 
     init() {
+        // Before any read below: a renamed bundle id starts with an empty preferences domain.
+        SettingsIdentityMigration.migrate(keys: Self.persistedKeys, to: UserDefaultsStore.standard)
+
         var resolvedPath = ""
         var initialFolderState: NotesFolderState = .unconfigured
 
-        // Resolve Security-Scoped Bookmark if available
-        if let bookmarkData = UserDefaults.standard.data(forKey: Self.bookmarkKey) {
-            var isStale = false
-            do {
-                let resolvedURL = try URL(
-                    resolvingBookmarkData: bookmarkData,
-                    options: .withSecurityScope,
-                    relativeTo: nil,
-                    bookmarkDataIsStale: &isStale
-                )
-                if isStale {
-                    if let newBookmark = try? resolvedURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
-                        UserDefaults.standard.set(newBookmark, forKey: Self.bookmarkKey)
-                    }
-                }
-                resolvedPath = resolvedURL.path
-                initialFolderState = .inaccessible
-            } catch {
-                resolvedPath = UserDefaults.standard.string(forKey: Self.userDefaultsKey) ?? ""
-                initialFolderState = resolvedPath.isEmpty ? .unconfigured : .inaccessible
-            }
-        } else {
-            resolvedPath = UserDefaults.standard.string(forKey: Self.userDefaultsKey) ?? ""
-            initialFolderState = resolvedPath.isEmpty ? .unconfigured : .inaccessible
+        if let url = Self.resolveFolderURL() {
+            resolvedPath = url.path
+            // Until a store actually opens the folder, "inaccessible" is the honest answer.
+            initialFolderState = .inaccessible
         }
 
         notesFolderPath = resolvedPath
@@ -212,12 +200,6 @@ final class AppSettings: ObservableObject {
             fontFamily = family
         } else {
             fontFamily = .monospaced
-        }
-
-        if UserDefaults.standard.object(forKey: Self.showWordCountKey) != nil {
-            showWordCount = UserDefaults.standard.bool(forKey: Self.showWordCountKey)
-        } else {
-            showWordCount = true
         }
 
         if UserDefaults.standard.object(forKey: Self.backgroundOpacityKey) != nil {
@@ -251,6 +233,26 @@ final class AppSettings: ObservableObject {
         folderState == .available
     }
 
+    /// Showing the folder in Finder is how the user repairs unreadable notes, so it stays available
+    /// while the app refuses to write there.
+    var canOpenFolderInFinder: Bool {
+        folderState == .available || folderState == .unreadableNotes
+    }
+
+    /// Notes stay writable while access is pending: the text goes to the mirror outside the folder,
+    /// so a permission stall cannot lock the user out of the note they came to write.
+    var isEditorUsable: Bool {
+        folderState == .available || folderState == .awaitingAccess
+    }
+
+    /// Set by the app container: re-runs the folder opening, for after access has been granted
+    /// in System Settings.
+    var folderRetryHandler: (() -> Void)?
+
+    func retryFolderAccess() {
+        folderRetryHandler?()
+    }
+
     func promptForFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -258,19 +260,42 @@ final class AppSettings: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.prompt = "Выбрать"
         panel.message = "Выберите папку для хранения заметок"
+        if !notesFolderPath.isEmpty {
+            // Re-picking the folder it already points at is the one click that restores access.
+            panel.directoryURL = URL(fileURLWithPath: notesFolderPath, isDirectory: true)
+        }
+        // A menu bar app has no windows of its own; without this the panel can open behind others.
+        NSApp.activate(ignoringOtherApps: true)
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
 
-            // Save Security-Scoped Bookmark
-            if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
-                UserDefaults.standard.set(bookmark, forKey: Self.bookmarkKey)
-            }
+            // The bookmark replaces the old one even when it cannot be created, so a folder change
+            // never leaves the previous grant behind.
+            NotesFolderResolver.storeBookmark(
+                for: url,
+                store: UserDefaultsStore.standard,
+                pathKey: Self.userDefaultsKey,
+                bookmarkKey: Self.bookmarkKey
+            )
             self?.notesFolderPath = url.path
         }
     }
 
+    /// The folder to open: the stored bookmark wins, because it is the one carrying access.
+    func folderURLForAccess() -> URL? {
+        Self.resolveFolderURL()
+    }
+
+    static func resolveFolderURL(store: SettingsStore = UserDefaultsStore.standard) -> URL? {
+        NotesFolderResolver.folderURL(
+            store: store,
+            pathKey: userDefaultsKey,
+            bookmarkKey: bookmarkKey
+        )
+    }
+
     func openFolderInFinder() {
-        guard isFolderReady else { return }
+        guard canOpenFolderInFinder else { return }
         let url = URL(fileURLWithPath: notesFolderPath, isDirectory: true)
         NSWorkspace.shared.open(url)
     }

@@ -12,12 +12,18 @@
 		6AFFA08F77C8F3AD29942605 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806523201C5EC03E1CC58EEB /* AppDelegate.swift */; };
 		1C4D7A2B3E6F8A9C0D1E2F3A /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3B4C5D6E7F8091A2B3C4D5 /* LaunchAtLoginManager.swift */; };
 		98EBEF61DF4D1A503C2B42D9 /* NotesFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41FCA92174879610EA813205 /* NotesFileStore.swift */; };
-		A1000000000000000000000A /* TotCloneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* TotCloneApp.swift */; };
+		A1000000000000000000000A /* NoteObsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* NoteObsApp.swift */; };
 		A1000000000000000000000B /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* AppKit.framework */; };
 		A1000000000000000000000C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000009 /* SwiftUI.framework */; };
 		BAFAE1DB022DBD6CD47F8BE5 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3D65F87805E6C5D5F3943B /* Models.swift */; };
 		E01360F890437A1BA8B5F236 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77126D84BE2A15D6C6250CC9 /* Views.swift */; };
 		FE938BE0DF94F900C17F2699 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C37D08B6E305CE35ADB4D3 /* AppSettings.swift */; };
+		B10000000000000000000001 /* MarkdownStyling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* MarkdownStyling.swift */; };
+		B10000000000000000000002 /* NoteShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* NoteShortcuts.swift */; };
+		B10000000000000000000003 /* NotesFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* NotesFolderAccess.swift */; };
+		B10000000000000000000004 /* RecoveryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* RecoveryStore.swift */; };
+		B10000000000000000000005 /* SettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* SettingsMigration.swift */; };
+		B10000000000000000000006 /* Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* Verification.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,13 +33,19 @@
 		41FCA92174879610EA813205 /* NotesFileStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesFileStore.swift; sourceTree = "<group>"; };
 		77126D84BE2A15D6C6250CC9 /* Views.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		806523201C5EC03E1CC58EEB /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		A10000000000000000000005 /* TotClone.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = TotClone.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000006 /* TotCloneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotCloneApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000005 /* NoteObs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = NoteObs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000006 /* NoteObsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteObsApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000008 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		A10000000000000000000009 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		ED3D65F87805E6C5D5F3943B /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		FF13AA1DCA089C3616037B09 /* NotesViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesViewModel.swift; sourceTree = "<group>"; };
+		B20000000000000000000001 /* MarkdownStyling.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MarkdownStyling.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* NoteShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NoteShortcuts.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* NotesFolderAccess.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesFolderAccess.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* RecoveryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecoveryStore.swift; sourceTree = "<group>"; };
+		B20000000000000000000005 /* SettingsMigration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsMigration.swift; sourceTree = "<group>"; };
+		B20000000000000000000006 /* Verification.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Verification.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,7 +64,7 @@
 		A10000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000004 /* TotClone */,
+				A10000000000000000000004 /* NoteObs */,
 				A10000000000000000000003 /* Frameworks */,
 				A10000000000000000000002 /* Products */,
 			);
@@ -61,7 +73,7 @@
 		A10000000000000000000002 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000005 /* TotClone.app */,
+				A10000000000000000000005 /* NoteObs.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -75,10 +87,10 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000004 /* TotClone */ = {
+		A10000000000000000000004 /* NoteObs */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000006 /* TotCloneApp.swift */,
+				A10000000000000000000006 /* NoteObsApp.swift */,
 				A10000000000000000000007 /* Info.plist */,
 				ED3D65F87805E6C5D5F3943B /* Models.swift */,
 				FF13AA1DCA089C3616037B09 /* NotesViewModel.swift */,
@@ -88,16 +100,22 @@
 				806523201C5EC03E1CC58EEB /* AppDelegate.swift */,
 				2A3B4C5D6E7F8091A2B3C4D5 /* LaunchAtLoginManager.swift */,
 				77126D84BE2A15D6C6250CC9 /* Views.swift */,
+				B20000000000000000000001 /* MarkdownStyling.swift */,
+				B20000000000000000000002 /* NoteShortcuts.swift */,
+				B20000000000000000000003 /* NotesFolderAccess.swift */,
+				B20000000000000000000004 /* RecoveryStore.swift */,
+				B20000000000000000000005 /* SettingsMigration.swift */,
+				B20000000000000000000006 /* Verification.swift */,
 			);
-			path = TotClone;
+			path = NoteObs;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A10000000000000000000010 /* TotClone */ = {
+		A10000000000000000000010 /* NoteObs */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A10000000000000000000012 /* Build configuration list for PBXNativeTarget "TotClone" */;
+			buildConfigurationList = A10000000000000000000012 /* Build configuration list for PBXNativeTarget "NoteObs" */;
 			buildPhases = (
 				A1000000000000000000000D /* Sources */,
 				A1000000000000000000000E /* Frameworks */,
@@ -107,9 +125,9 @@
 			);
 			dependencies = (
 			);
-			name = TotClone;
-			productName = TotClone;
-			productReference = A10000000000000000000005 /* TotClone.app */;
+			name = NoteObs;
+			productName = NoteObs;
+			productReference = A10000000000000000000005 /* NoteObs.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -126,7 +144,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A10000000000000000000011 /* Build configuration list for PBXProject "TotClone" */;
+			buildConfigurationList = A10000000000000000000011 /* Build configuration list for PBXProject "NoteObs" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -139,7 +157,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A10000000000000000000010 /* TotClone */,
+				A10000000000000000000010 /* NoteObs */,
 			);
 		};
 /* End PBXProject section */
@@ -159,7 +177,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000000000000000000000A /* TotCloneApp.swift in Sources */,
+				A1000000000000000000000A /* NoteObsApp.swift in Sources */,
 				BAFAE1DB022DBD6CD47F8BE5 /* Models.swift in Sources */,
 				4FBFE9E1DFBC93554FC96D78 /* NotesViewModel.swift in Sources */,
 				98EBEF61DF4D1A503C2B42D9 /* NotesFileStore.swift in Sources */,
@@ -168,6 +186,12 @@
 				6AFFA08F77C8F3AD29942605 /* AppDelegate.swift in Sources */,
 				1C4D7A2B3E6F8A9C0D1E2F3A /* LaunchAtLoginManager.swift in Sources */,
 				E01360F890437A1BA8B5F236 /* Views.swift in Sources */,
+				B10000000000000000000001 /* MarkdownStyling.swift in Sources */,
+				B10000000000000000000002 /* NoteShortcuts.swift in Sources */,
+				B10000000000000000000003 /* NotesFolderAccess.swift in Sources */,
+				B10000000000000000000004 /* RecoveryStore.swift in Sources */,
+				B10000000000000000000005 /* SettingsMigration.swift in Sources */,
+				B10000000000000000000006 /* Verification.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,14 +225,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				INFOPLIST_FILE = TotClone/Info.plist;
+				INFOPLIST_FILE = NoteObs/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.3;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.TotClone;
+				MARKETING_VERSION = 0.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.martystev.noteobs;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
@@ -222,14 +246,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				INFOPLIST_FILE = TotClone/Info.plist;
+				INFOPLIST_FILE = NoteObs/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.3;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.TotClone;
+				MARKETING_VERSION = 0.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.martystev.noteobs;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
@@ -239,7 +263,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A10000000000000000000011 /* Build configuration list for PBXProject "TotClone" */ = {
+		A10000000000000000000011 /* Build configuration list for PBXProject "NoteObs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000000000000000013 /* Debug */,
@@ -248,7 +272,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		A10000000000000000000012 /* Build configuration list for PBXNativeTarget "TotClone" */ = {
+		A10000000000000000000012 /* Build configuration list for PBXNativeTarget "NoteObs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000000000000000015 /* Debug */,
