@@ -15,6 +15,11 @@ final class NotesViewModel: ObservableObject {
     /// Text that is typed but not on disk yet. Shown as a non-blocking hint instead of an alert.
     @Published private(set) var isSaveFailing = false
 
+    /// Slots whose last write failed and is being retried.
+    private var failingSlots: Set<Int> = [] {
+        didSet { isSaveFailing = !failingSlots.isEmpty }
+    }
+
     /// Unwritten text a previous session left behind, waiting for the user to accept or drop it.
     @Published private(set) var recoveryOffers: [RecoveryOffer] = []
 
@@ -34,10 +39,20 @@ final class NotesViewModel: ObservableObject {
     /// file monitor from a genuine external edit, even when the disk lags behind the editor.
     private var syncedTexts: [String]
 
-    private var saveTask: Task<Void, Never>?
-    private var pendingSave: (index: Int, text: String)?
+    /// One slot's write the folder still owes. Every slot has its own, so typing in one note can
+    /// never cancel the write, or the retry, of another.
+    private struct PendingSave {
+        let text: String
+        let generation: Int
+        let attempt: Int
+        let task: Task<Void, Never>
+    }
+
+    private var pendingSaves: [Int: PendingSave] = [:]
+    /// Bumped by every scheduled write: a read that started before a keystroke is behind it.
     private var saveGeneration = 0
-    private var saveAttempt = 0
+    /// Bumped by every confirmed write: a read that started before a write landed may predate it.
+    private var landedSaves = 0
     private var attachedPath: String?
     /// How the folder is read. The regression checks swap it to stage a folder that answers late.
     var snapshotReader: @Sendable (NotesFileStore, Int) -> [SlotRead] = { store, count in
@@ -108,7 +123,7 @@ final class NotesViewModel: ObservableObject {
         scheduleSave(text: text, index: index, delay: saveDebounce)
     }
 
-    private func scheduleSave(text: String, index: Int, delay: UInt64) {
+    private func scheduleSave(text: String, index: Int, delay: UInt64, attempt: Int = 0) {
         // Mirror before anything else: if no folder currently holds this text — suspended after an
         // error, or wedged behind a permission that never arrived — the typed note still has to
         // survive the process quitting.
@@ -116,31 +131,38 @@ final class NotesViewModel: ObservableObject {
             recovery.mirror(text: text, index: index)
         }
         guard let fileStore else { return }
-        saveTask?.cancel()
-        pendingSave = (index, text)
+        pendingSaves[index]?.task.cancel()
         saveGeneration += 1
         let generation = saveGeneration
         let expectedToken = fileStoreToken
 
-        saveTask = Task { [weak self] in
+        let task = Task { [weak self] in
             do {
                 if delay > 0 {
                     try await Task.sleep(nanoseconds: delay)
                 }
                 try Task.checkCancellation()
                 try await fileStore.save(text: text, index: index)
-                guard !Task.isCancelled else { return }
-                guard let self, self.fileStoreToken == expectedToken, self.saveGeneration == generation else { return }
+                guard let self, self.isCurrent(index: index, generation: generation, token: expectedToken) else { return }
                 self.syncedTexts[index] = text
-                self.pendingSave = nil
-                self.saveAttempt = 0
-                self.isSaveFailing = false
+                self.pendingSaves[index] = nil
+                self.failingSlots.remove(index)
+                self.landedSaves += 1
                 self.recovery.discard(index: index)
+            } catch is CancellationError {
+                // Superseded by newer text for this slot, which carries its own write.
             } catch let error {
                 let storeError = (error as? NotesFileStoreError) ?? .writeFailed
                 self?.handleSaveFailure(storeError, text: text, index: index, generation: generation, token: expectedToken)
             }
         }
+        pendingSaves[index] = PendingSave(text: text, generation: generation, attempt: attempt, task: task)
+    }
+
+    /// Whether a finished write still speaks for its slot: nothing newer was typed there, and the
+    /// folder it went to is still the one in use.
+    private func isCurrent(index: Int, generation: Int, token: UUID) -> Bool {
+        fileStoreToken == token && pendingSaves[index]?.generation == generation
     }
 
     /// Keeps the typed text queued and retries it, so a busy or briefly unavailable synced
@@ -152,26 +174,37 @@ final class NotesViewModel: ObservableObject {
         generation: Int,
         token: UUID
     ) {
-        guard !Task.isCancelled, fileStoreToken == token, saveGeneration == generation else { return }
-        guard pendingSave?.index == index, pendingSave?.text == text else { return }
+        guard isCurrent(index: index, generation: generation, token: token),
+              let attempt = pendingSaves[index]?.attempt else { return }
 
+        if error == .slotUnreadable {
+            // The note went unreadable after the folder was read. Same as finding it at open time:
+            // stop writing, keep the text in the mirror, and let the folder's content win later.
+            closeFolderOverUnreadableSlots([index])
+            return
+        }
         if error.isFatal {
             fileErrorHandler?()
             return
         }
 
-        isSaveFailing = true
-        let delay = retryDelays[min(saveAttempt, retryDelays.count - 1)]
-        saveAttempt += 1
-        scheduleSave(text: text, index: index, delay: delay)
+        failingSlots.insert(index)
+        let delay = retryDelays[min(attempt, retryDelays.count - 1)]
+        scheduleSave(text: text, index: index, delay: delay, attempt: attempt + 1)
     }
 
-    /// Writes the queued slot immediately, e.g. before switching slots.
+    /// Writes every slot still waiting out its debounce, e.g. before switching slots. A slot already
+    /// backing off after a failure keeps its schedule rather than hammering a struggling folder.
     private func flushPendingSave() {
-        guard let pending = pendingSave else { return }
-        saveTask?.cancel()
-        pendingSave = nil
-        scheduleSave(text: pending.text, index: pending.index, delay: 0)
+        for (index, pending) in pendingSaves where pending.attempt == 0 {
+            scheduleSave(text: pending.text, index: index, delay: 0)
+        }
+    }
+
+    private func closeFolderOverUnreadableSlots(_ indices: [Int]) {
+        contentFolderKey = nil
+        suspendFileStore()
+        folderUnreadableHandler?(indices)
     }
 
     /// Attaches a notes folder. When this is the folder a previous session was suspended on,
@@ -198,9 +231,8 @@ final class NotesViewModel: ObservableObject {
         fileStoreToken = token
         fileStore = store
         attachedPath = folderKey
-        pendingSave = nil
-        saveAttempt = 0
-        isSaveFailing = false
+        cancelPendingSaves()
+        failingSlots = []
         isFolderStalled = false
         // Scoped by the path the folder was opened under, so the other spelling of the same folder
         // stays readable as a legacy mirror location.
@@ -229,7 +261,12 @@ final class NotesViewModel: ObservableObject {
         }
         contentFolderKey = folderKey
         let slotCount = slots.count
-        await Self.offMain { store.ensureSlotFiles(count: slotCount) }
+        // Best effort, and bounded like a read: a provider that parks this must not keep the folder
+        // from opening. A file still missing afterwards is created by its first write.
+        _ = await Self.readWithinDeadline(deadlineNanoseconds: readTimeout) {
+            store.ensureSlotFiles(count: slotCount)
+            return true
+        }
         guard fileStoreToken == token else { return }
 
         for index in slots.indices {
@@ -249,14 +286,10 @@ final class NotesViewModel: ObservableObject {
             let diskHasNote = !(diskText ?? "").isEmpty
             let typedBeforeRead = mirrored == localText && !diskHasNote
             if !localText.isEmpty, localText != diskText, resuming || typedBeforeRead {
-                do {
-                    try store.saveSynchronously(text: localText, index: index)
-                    syncedTexts[index] = localText
-                    recovery.discard(index: index)
-                } catch {
-                    syncedTexts[index] = diskText ?? ""
-                    scheduleSave(text: localText, index: index, delay: retryDelays[0])
-                }
+                // Written through the folder's write queue like any other save: a write parked by
+                // the provider must not freeze the app, and must not be overtaken by an older one.
+                syncedTexts[index] = diskText ?? ""
+                scheduleSave(text: localText, index: index, delay: 0)
                 continue
             }
 
@@ -289,22 +322,13 @@ final class NotesViewModel: ObservableObject {
         recoveryOffers.removeAll { $0.index == offer.index }
         slots[offer.index].text = offer.text
 
-        guard let fileStore else {
+        guard fileStore != nil else {
             // No folder to write into yet: keep the mirror alive so the text is still owed.
             recovery.mirror(text: offer.text, index: offer.index)
             return
         }
-        // Another slot may still be mid-debounce; a single save task means it would be dropped.
-        if let pending = pendingSave, pending.index != offer.index {
-            flushPendingSaveSynchronously()
-        }
-        do {
-            try fileStore.saveSynchronously(text: offer.text, index: offer.index)
-            syncedTexts[offer.index] = offer.text
-            recovery.discard(index: offer.index)
-        } catch {
-            scheduleSave(text: offer.text, index: offer.index, delay: retryDelays[0])
-        }
+        // The mirror is discarded only once the folder confirms the write.
+        scheduleSave(text: offer.text, index: offer.index, delay: 0)
     }
 
     /// Drops unwritten text in favour of what the folder holds.
@@ -315,8 +339,7 @@ final class NotesViewModel: ObservableObject {
 
     /// Stops using the folder after a fatal error, keeping typed text for the next attempt.
     func suspendFileStore() {
-        saveTask?.cancel()
-        saveTask = nil
+        cancelPendingSaves()
         saveGeneration += 1
         fileStoreToken = UUID()
         fileStore = nil
@@ -330,33 +353,42 @@ final class NotesViewModel: ObservableObject {
     /// next attach has to know it, or a different folder would be handed them as its own.
     func detachFileStore() {
         suspendFileStore()
-        pendingSave = nil
         attachedPath = nil
         isFolderStalled = false
         syncedTexts = Array(repeating: "", count: slots.count)
-        isSaveFailing = false
+        failingSlots = []
         recoveryOffers = []
     }
 
+    /// Waits for the writes scheduled so far, including a pending debounce. A retry scheduled by a
+    /// failure along the way is not waited for.
     func flushPendingSaves() async {
-        _ = await saveTask?.result
+        for task in pendingSaves.values.map(\.task) {
+            await task.value
+        }
     }
 
     /// Writes queued text without waiting for the debounce, used when the app is terminating.
-    func flushPendingSaveSynchronously() {
-        saveTask?.cancel()
-        saveTask = nil
+    ///
+    /// The writes go through the folder's write queue, behind anything already on it, and the wait is
+    /// bounded: a folder that does not answer must not keep the app from quitting. Whatever has not
+    /// landed by then stays in the mirror, and the next launch offers it back.
+    func flushPendingSaveSynchronously(timeout: TimeInterval = 2) {
+        let pending = pendingSaves.mapValues(\.text)
+        cancelPendingSaves()
         saveGeneration += 1
-        defer { pendingSave = nil }
-        guard let pending = pendingSave, let fileStore else { return }
-        do {
-            try fileStore.saveSynchronously(text: pending.text, index: pending.index)
-            syncedTexts[pending.index] = pending.text
-            recovery.discard(index: pending.index)
-        } catch {
-            // Terminating: there is no time to present the folder alert or retry. The mirror keeps
-            // the text, and the next launch offers it back.
+        guard let fileStore, !pending.isEmpty else { return }
+        for index in fileStore.saveBeforeExit(pending, timeout: timeout) {
+            syncedTexts[index] = pending[index] ?? syncedTexts[index]
+            recovery.discard(index: index)
         }
+    }
+
+    private func cancelPendingSaves() {
+        for pending in pendingSaves.values {
+            pending.task.cancel()
+        }
+        pendingSaves = [:]
     }
 
     /// Reads the folder off the main actor: on a synced drive a healthy read of seven files can
@@ -365,6 +397,7 @@ final class NotesViewModel: ObservableObject {
         guard let fileStore, !isFolderStalled else { return }
         let expectedToken = fileStoreToken
         let expectedGeneration = saveGeneration
+        let expectedLanded = landedSaves
         let outcome = await readSnapshot(of: fileStore)
         guard fileStoreToken == expectedToken else { return }
         guard case .loaded(let texts) = outcome else {
@@ -379,13 +412,12 @@ final class NotesViewModel: ObservableObject {
             // it now holds, so writing stops before any keystroke can. The text we hold is no longer
             // known to match the folder: on reopening, the folder's content wins and anything still
             // owed is offered back rather than written over it.
-            contentFolderKey = nil
-            suspendFileStore()
-            folderUnreadableHandler?(unreadable)
+            closeFolderOverUnreadableSlots(unreadable)
             return
         }
-        // A keystroke landed while we were reading, so what we read is behind by definition.
-        guard saveGeneration == expectedGeneration else { return }
+        // A keystroke, or a write landing, while we were reading means what we read is behind: a
+        // snapshot taken before our own write would otherwise put the older text back.
+        guard saveGeneration == expectedGeneration, landedSaves == expectedLanded else { return }
         applyDiskSnapshot(texts)
     }
 
@@ -436,15 +468,6 @@ final class NotesViewModel: ObservableObject {
             waited += pollingIntervalNanoseconds
         }
         return result.value
-    }
-
-    private static func offMain(_ work: @escaping @Sendable () -> Void) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            ioQueue.async {
-                work()
-                continuation.resume()
-            }
-        }
     }
 
     private func applyDiskSnapshot(_ reads: [SlotRead]) {

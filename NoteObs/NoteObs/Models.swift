@@ -20,6 +20,9 @@ enum NotesFileStoreError: Error, Equatable {
     case notReadable
     case notWritable
     case writeFailed
+    /// The slot file holds something this app cannot read. Writing would replace it, so it is
+    /// never retried: the folder is closed until the file reads again.
+    case slotUnreadable
 }
 
 extension NotesFileStoreError {
@@ -29,7 +32,7 @@ extension NotesFileStoreError {
         switch self {
         case .folderMissing, .notDirectory, .notReadable, .notWritable:
             return true
-        case .writeFailed:
+        case .writeFailed, .slotUnreadable:
             return false
         }
     }

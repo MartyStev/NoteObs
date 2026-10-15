@@ -165,7 +165,11 @@ public enum NotesVerificationSuite {
             VerificationCase(name: "retrying an unreadable folder offers typed text instead of overwriting") { try await testRetryAfterUnreadableOffersInsteadOfOverwriting() },
             VerificationCase(name: "a stalled switch after a detach never copies notes into it") { try await testStalledSwitchAfterDetachDoesNotCopyNotesAcross() },
             VerificationCase(name: "a detached folder that returns keeps its own content") { try await testDetachedFolderReturnsWithItsOwnContent() },
-            VerificationCase(name: "a note going unreadable under an open folder stops all writes") { try await testNoteGoingUnreadableWhileOpenStopsWrites() }
+            VerificationCase(name: "a note going unreadable under an open folder stops all writes") { try await testNoteGoingUnreadableWhileOpenStopsWrites() },
+            VerificationCase(name: "typing in one note never cancels another note's retry") { try await testTypingElsewhereKeepsAnotherSlotsRetry() },
+            VerificationCase(name: "a write refuses to replace a note that will not read") { try await testWriteRefusesAnUnreadableSlot() },
+            VerificationCase(name: "a snapshot read before our write landed does not undo it") { try await testSlowSnapshotDoesNotUndoALandedWrite() },
+            VerificationCase(name: "quitting never waits on a write the folder does not answer") { try await testQuittingDoesNotWaitOnAStalledWrite() }
         ]
     }
 
@@ -517,6 +521,7 @@ public enum NotesVerificationSuite {
         try FileManager.default.removeItem(at: VerificationWorkspace.slotURL(folder, 0))
         guard let offer = relaunched.recoveryOffers.first else { throw VerificationFailure("offer disappeared") }
         relaunched.acceptRecovery(offer)
+        await relaunched.flushPendingSaves()
 
         try vexpectEqual(relaunched.slots[0].text, "typed while the folder was busy", "accepted text reaches the note")
         try vexpectEqual(
@@ -1166,6 +1171,7 @@ public enum NotesVerificationSuite {
         // Accepting is the user's decision to replace the note.
         guard let offer = viewModel.recoveryOffers.first else { throw VerificationFailure("no offer to accept") }
         viewModel.acceptRecovery(offer)
+        await viewModel.flushPendingSaves()
         try vexpectEqual(try VerificationWorkspace.read(readableSlot), "typed over what looked empty", "accepted text reaches the folder")
     }
 
@@ -1292,6 +1298,117 @@ public enum NotesVerificationSuite {
         )
         try vexpectEqual(try VerificationWorkspace.read(firstSlot), "saved while the folder was healthy", "the healthy note is intact")
         try vexpectEqual(viewModel.slots[0].text, "saved while the folder was healthy", "and still shown")
+    }
+
+    static func testTypingElsewhereKeepsAnotherSlotsRetry() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let firstSlot = VerificationWorkspace.slotURL(folder, 0)
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+
+        try VerificationWorkspace.blockSlot(firstSlot)
+        viewModel.updateText("first note, waiting for its retry")
+        await viewModel.flushPendingSaves()
+        try vexpect(viewModel.isSaveFailing, "the first note's write failed and is being retried")
+
+        // The user moves on and types in another note while the first one is still owed.
+        viewModel.select(index: 1)
+        viewModel.updateText("second note")
+        await viewModel.flushPendingSaves()
+        try vexpectEqual(
+            try VerificationWorkspace.read(VerificationWorkspace.slotURL(folder, 1)),
+            "second note",
+            "the second note is written"
+        )
+
+        try FileManager.default.removeItem(at: firstSlot)
+        let deadline = Date().addingTimeInterval(8)
+        while (try? VerificationWorkspace.read(firstSlot)) != "first note, waiting for its retry", Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        try vexpectEqual(
+            try VerificationWorkspace.read(firstSlot),
+            "first note, waiting for its retry",
+            "the first note's retry survived the typing in another note"
+        )
+        try vexpect(!viewModel.isSaveFailing, "no write is failing any more")
+    }
+
+    static func testWriteRefusesAnUnreadableSlot() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let slot = VerificationWorkspace.slotURL(folder, 0)
+        let unreadable = Data([0xFF, 0xFE, 0x80])
+        try unreadable.write(to: slot)
+        let store = try NotesFileStore(path: folder.path)
+
+        do {
+            try await store.save(text: "would replace it", index: 0)
+            throw VerificationFailure("a write over an unreadable note should have been refused")
+        } catch NotesFileStoreError.slotUnreadable {
+            // Expected.
+        }
+        try vexpectEqual(try Data(contentsOf: slot), unreadable, "the unreadable note is still on disk")
+
+        try await store.save(text: "a fresh note", index: 1)
+        try vexpectEqual(try VerificationWorkspace.read(VerificationWorkspace.slotURL(folder, 1)), "a fresh note", "other notes still write")
+    }
+
+    static func testSlowSnapshotDoesNotUndoALandedWrite() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let slot = VerificationWorkspace.slotURL(folder, 0)
+        try "before".write(to: slot, atomically: true, encoding: .utf8)
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+
+        // A read that takes its snapshot at once but answers late, as a busy provider does.
+        viewModel.snapshotReader = { store, count in
+            let snapshot = store.loadSnapshot(count: count)
+            Thread.sleep(forTimeInterval: 0.9)
+            return snapshot
+        }
+        viewModel.updateText("after")
+        await viewModel.refreshFromDisk()   // the debounced write lands while this read is out
+        await viewModel.flushPendingSaves()
+
+        try vexpectEqual(try VerificationWorkspace.read(slot), "after", "the write landed")
+        try vexpectEqual(viewModel.slots[0].text, "after", "the late snapshot did not put the old text back")
+    }
+
+    static func testQuittingDoesNotWaitOnAStalledWrite() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let mirrors = RecoveryStore(baseDirectory: recoveryBase).scoped(to: folder.path)
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+
+        // The provider parks a write: the folder's queue is held for longer than the app may wait.
+        let parked = FileWriteQueue.shared(for: folder)
+        Task.detached { try? await parked.perform { Thread.sleep(forTimeInterval: 2) } }
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        viewModel.updateText("typed just before quitting")
+        let began = Date()
+        viewModel.flushPendingSaveSynchronously(timeout: 0.3)
+        let elapsed = Date().timeIntervalSince(began)
+        viewModel.settleRecoveryForTermination()
+
+        try vexpect(elapsed < 1, "quitting waited \(elapsed)s on a folder that did not answer")
+        try vexpectEqual(mirrors.contents(ofSlotAt: 0), "typed just before quitting", "the text is kept for the next launch")
     }
 
     static func testRecoveryDirectoryFollowsTheRename() async throws {
