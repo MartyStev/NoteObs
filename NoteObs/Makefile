@@ -17,9 +17,25 @@ verify:
 	$(SWIFT) build
 	$(BIN_DIR)/NoteObs --verify
 
-## Release build only; packaging into ../dist is still done by hand, see the project notes.
+VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' NoteObs/Info.plist)
+DIST := ../dist
+APP := $(DIST)/NoteObs.app
+
+## Builds the release binary, runs the checks against it, and packs ../dist/NoteObs.app (signed ad hoc:
+## there is no Developer ID here) together with a zip and a dmg of it.
 release-app:
 	$(SWIFT) build -c release
+	"$$($(SWIFT) build -c release --show-bin-path)/NoteObs" --verify
+	rm -rf "$(APP)"
+	mkdir -p "$(APP)/Contents/MacOS"
+	cp "$$($(SWIFT) build -c release --show-bin-path)/NoteObs" "$(APP)/Contents/MacOS/NoteObs"
+	cp NoteObs/Info.plist "$(APP)/Contents/Info.plist"
+	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
+	codesign --force --sign - --timestamp=none "$(APP)"
+	codesign --verify --strict "$(APP)"
+	rm -f "$(DIST)/NoteObs-$(VERSION)-macOS-Release.zip" "$(DIST)/NoteObs.dmg"
+	cd "$(DIST)" && ditto -c -k --keepParent NoteObs.app "NoteObs-$(VERSION)-macOS-Release.zip"
+	hdiutil create -quiet -volname NoteObs -srcfolder "$(APP)" -ov -format UDZO "$(DIST)/NoteObs.dmg"
 
 clean:
 	rm -rf .build
