@@ -174,7 +174,10 @@ public enum NotesVerificationSuite {
             VerificationCase(name: "re-picking the folder never pushes a clean note over a newer one") { try await testRepickingTheFolderKeepsNewerDiskContent() },
             VerificationCase(name: "typing in one note does not hide an external edit to another") { try await testRefreshAppliesSettledSlotsWhileTyping() },
             VerificationCase(name: "a checklist toggle keeps indentation and touches only the marker") { try await testChecklistToggleKeepsTheLine() },
-            VerificationCase(name: "only the box of a checklist item is a toggle target") { try await testChecklistBoxIsTheOnlyTarget() }
+            VerificationCase(name: "only the box of a checklist item is a toggle target") { try await testChecklistBoxIsTheOnlyTarget() },
+            VerificationCase(name: "a stalled folder that answers late is opened again by itself") { try await testLateAnswerReopensTheFolder() },
+            VerificationCase(name: "a write the folder sits on is shown as not saved") { try await testParkedWriteIsShownAsNotSaved() },
+            VerificationCase(name: "a note emptied while the folder was away stays empty") { try await testEmptiedNoteIsNotResurrected() }
         ]
     }
 
@@ -1120,7 +1123,14 @@ public enum NotesVerificationSuite {
         try vexpectEqual(stalls, 1, "the silent folder is reported as stalled")
         try vexpectEqual(viewModel.slots[0].text, "", "A's notes are not left standing in front of folder B")
 
-        // Access arrives and the user picks the folder again.
+        // Access arrives: the parked read answers, and the folder is opened again.
+        var reopened = false
+        viewModel.folderAnsweredHandler = { reopened = true }
+        let lateDeadline = Date().addingTimeInterval(3)
+        while !reopened, Date() < lateDeadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        try vexpect(reopened, "the parked read answered once access arrived")
         await viewModel.attachFileStore(try NotesFileStore(path: folderB.path))
         await viewModel.flushPendingSaves()
 
@@ -1223,6 +1233,13 @@ public enum NotesVerificationSuite {
         viewModel.updateText("typed while B was silent")
         try vexpectEqual(VerificationWorkspace.waitForMirror(mirrorsB, index: 0), "typed while B was silent", "typing is kept")
 
+        var reopened = false
+        viewModel.folderAnsweredHandler = { reopened = true }
+        let lateDeadline = Date().addingTimeInterval(3)
+        while !reopened, Date() < lateDeadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        try vexpect(reopened, "the parked read answered once access arrived")
         await viewModel.attachFileStore(try NotesFileStore(path: folderB.path))
         await viewModel.flushPendingSaves()
 
@@ -1523,6 +1540,97 @@ public enum NotesVerificationSuite {
         try vexpect(Checklist.boxRange(in: "- plain bullet") == nil, "a bullet has no box")
         try vexpect(Checklist.boxRange(in: "text - [ ] later") == nil, "a marker mid-line is not a box")
         try vexpect(!NSLocationInRange(5, Checklist.boxRange(in: "- [ ] item")!), "the space before the text is a caret spot")
+    }
+
+    static func testLateAnswerReopensTheFolder() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        try "on the folder".write(to: VerificationWorkspace.slotURL(folder, 0), atomically: true, encoding: .utf8)
+
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase, readTimeout: 200_000_000)
+        let reads = ReadResult<Bool>()          // set by the first read, i.e. "it was asked once"
+        let secondRead = ReadResult<Bool>()
+        viewModel.snapshotReader = { store, count in
+            if reads.value == nil {
+                reads.set(true)
+                Thread.sleep(forTimeInterval: 0.7)   // the permission prompt, answered late
+            } else {
+                secondRead.set(true)
+            }
+            return store.loadSnapshot(count: count)
+        }
+        var answered = 0
+        viewModel.folderAnsweredHandler = { answered += 1 }
+        let store = try NotesFileStore(path: folder.path)
+
+        await viewModel.attachFileStore(store)
+        try vexpect(viewModel.slots[0].text.isEmpty, "the folder stalled")
+
+        // The user presses "Проверить" while the first read is still parked.
+        await viewModel.attachFileStore(store)
+        try vexpect(secondRead.value == nil, "no second read is parked next to the first")
+
+        let deadline = Date().addingTimeInterval(3)
+        while answered == 0, Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        try vexpectEqual(answered, 1, "the late answer asks for the folder to be opened again")
+
+        await viewModel.attachFileStore(store)
+        try vexpectEqual(viewModel.slots[0].text, "on the folder", "and opening it now works")
+    }
+
+    static func testParkedWriteIsShownAsNotSaved() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase, writeStallTimeout: 300_000_000)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+
+        let parked = FileWriteQueue.shared(for: folder)
+        Task.detached { try? await parked.perform { Thread.sleep(forTimeInterval: 1.5) } }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        viewModel.updateText("waiting behind a parked write")
+        try await Task.sleep(nanoseconds: 1_000_000_000)   // debounce + stall timeout, queue still held
+        try vexpect(viewModel.isSaveFailing, "the note is shown as not saved while the folder sits on it")
+
+        await viewModel.flushPendingSaves()
+        try vexpect(!viewModel.isSaveFailing, "and as saved once the write lands")
+        try vexpectEqual(
+            try VerificationWorkspace.read(VerificationWorkspace.slotURL(folder, 0)),
+            "waiting behind a parked write",
+            "the write landed"
+        )
+    }
+
+    static func testEmptiedNoteIsNotResurrected() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let slot = VerificationWorkspace.slotURL(folder, 0)
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+        viewModel.updateText("to be deleted")
+        await viewModel.flushPendingSaves()
+
+        viewModel.suspendFileStore()      // the folder goes away for a moment
+        viewModel.updateText("")          // and the user empties the note meanwhile
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+        await viewModel.flushPendingSaves()
+
+        try vexpectEqual(viewModel.slots[0].text, "", "the note stays empty")
+        try vexpectEqual(try VerificationWorkspace.read(slot), "", "and the folder is told so")
     }
 
     static func testRecoveryDirectoryFollowsTheRename() async throws {

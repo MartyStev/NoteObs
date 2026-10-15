@@ -135,7 +135,21 @@ struct RecoveryStore: Sendable {
     func mirror(text: String, index: Int) {
         let url = fileURL(for: index)
         Self.ioQueue.async {
-            try? text.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                try text.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                // The directory may have been removed under us (a cleanup tool, a reset). Recreate it
+                // once; the mirror is the only copy of text the folder has not taken yet.
+                do {
+                    try FileManager.default.createDirectory(
+                        at: url.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    try text.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    RecoveryStore.log.error("Cannot mirror \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                }
+            }
         }
     }
 

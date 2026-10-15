@@ -29,6 +29,16 @@ final class NotesViewModel: ObservableObject {
     var folderStalledHandler: (() -> Void)?
     /// Called with the slot indices whose files exist but could not be read; the folder is not opened.
     var folderUnreadableHandler: (([Int]) -> Void)?
+    /// Called when a folder that stalled finally answered the read that was given up on — typically
+    /// macOS granting access — so the app can open it without the user having to ask again.
+    var folderAnsweredHandler: (() -> Void)?
+
+    /// Folders with a read still parked in the kernel, and since when. A new read of the same folder
+    /// would only park another thread next to it, so for a while the answer is "still stalled".
+    private var parkedReads: [String: Date] = [:]
+    private let parkedReadRetryInterval: TimeInterval = 30
+    /// A write this much past its debounce without an answer is shown as not saved yet.
+    private let writeStallTimeout: UInt64
     private(set) var isFolderStalled = false
     private var fileStore: NotesFileStore?
     private var fileStoreToken = UUID()
@@ -48,6 +58,13 @@ final class NotesViewModel: ObservableObject {
         /// When the write leaves its debounce; nil once it is going out without one.
         let firesAt: Date?
         let task: Task<Void, Never>
+        /// Marks the slot as not saved when the write neither lands nor fails in good time.
+        let watchdog: Task<Void, Never>
+
+        func cancel() {
+            task.cancel()
+            watchdog.cancel()
+        }
     }
 
     private var pendingSaves: [Int: PendingSave] = [:]
@@ -82,8 +99,13 @@ final class NotesViewModel: ObservableObject {
     /// The mirror tree is named here rather than handed in ready-made, so a caller that only wants
     /// its own throwaway copies — the regression checks do — never reaches the user's real one.
     /// Attaching a folder narrows this to the mirrors that folder owes.
-    init(recoveryBase: URL = RecoveryStore.defaultDirectoryURL(), readTimeout: UInt64 = 5_000_000_000) {
+    init(
+        recoveryBase: URL = RecoveryStore.defaultDirectoryURL(),
+        readTimeout: UInt64 = 5_000_000_000,
+        writeStallTimeout: UInt64 = 5_000_000_000
+    ) {
         self.readTimeout = readTimeout
+        self.writeStallTimeout = writeStallTimeout
         let colors: [NSColor] = [
             NSColor.systemRed,
             NSColor.systemOrange,
@@ -140,7 +162,7 @@ final class NotesViewModel: ObservableObject {
         }
         slotChanges[index] += 1
         guard let fileStore else { return }
-        pendingSaves[index]?.task.cancel()
+        pendingSaves[index]?.cancel()
         saveGeneration += 1
         let generation = saveGeneration
         let expectedToken = fileStoreToken
@@ -165,12 +187,21 @@ final class NotesViewModel: ObservableObject {
                 self?.handleSaveFailure(storeError, text: text, index: index, generation: generation, token: expectedToken)
             }
         }
+        // A parked write never fails, so without this the note would look saved while the text
+        // exists only in the mirror.
+        let watchdogDelay = delay + writeStallTimeout
+        let watchdog = Task { [weak self] in
+            guard (try? await Task.sleep(nanoseconds: watchdogDelay)) != nil,
+                  let self, self.isCurrent(index: index, generation: generation, token: expectedToken) else { return }
+            self.failingSlots.insert(index)
+        }
         pendingSaves[index] = PendingSave(
             text: text,
             generation: generation,
             attempt: attempt,
             firesAt: delay > 0 ? Date().addingTimeInterval(TimeInterval(delay) / 1_000_000_000) : nil,
-            task: task
+            task: task,
+            watchdog: watchdog
         )
     }
 
@@ -314,7 +345,8 @@ final class NotesViewModel: ObservableObject {
             // Resuming only pushes what the folder was never given. A note that was written and not
             // touched since is clean: if the disk differs now, someone else changed it, and that wins.
             let owedOnResume = resuming && localText != confirmedTexts[index]
-            if !localText.isEmpty, localText != diskText, owedOnResume || typedBeforeRead {
+            // A note the user emptied is owed too: requiring text here would bring the old content back.
+            if localText != diskText, owedOnResume || (typedBeforeRead && !localText.isEmpty) {
                 // Written through the folder's write queue like any other save: a write parked by
                 // the provider must not freeze the app, and must not be overtaken by an older one.
                 syncedTexts[index] = diskText ?? ""
@@ -415,7 +447,7 @@ final class NotesViewModel: ObservableObject {
 
     private func cancelPendingSaves() {
         for pending in pendingSaves.values {
-            pending.task.cancel()
+            pending.cancel()
         }
         pendingSaves = [:]
     }
@@ -468,35 +500,61 @@ final class NotesViewModel: ObservableObject {
     /// the parked thread goes away with the process, and the answer it eventually brings back is
     /// dropped by the token guard at the call site.
     private func readSnapshot(of store: NotesFileStore) async -> FolderRead {
+        let folderKey = NotesFolderIdentity.key(for: store.folderURL.path)
+        if let since = parkedReads[folderKey], Date().timeIntervalSince(since) < parkedReadRetryInterval {
+            return .stalled
+        }
         let count = slots.count
         let reader = snapshotReader
-        guard let texts = await Self.readWithinDeadline(deadlineNanoseconds: readTimeout, {
-            reader(store, count)
-        }) else {
+        let texts = await Self.readWithinDeadline(
+            deadlineNanoseconds: readTimeout,
+            onLateAnswer: { [weak self] in
+                Task { @MainActor in self?.folderAnsweredLate(folderKey) }
+            },
+            { reader(store, count) }
+        )
+        guard let texts else {
+            parkedReads[folderKey] = Date()
             return .stalled
         }
         return .loaded(texts)
     }
 
+    /// The read given up on has come back: the folder answers now. Opening it again is only right
+    /// while it is still the folder in use and still waiting for exactly this.
+    private func folderAnsweredLate(_ folderKey: String) {
+        parkedReads[folderKey] = nil
+        guard isFolderStalled, attachedPath == folderKey else { return }
+        folderAnsweredHandler?()
+    }
+
     /// Runs a blocking folder read where blocking belongs — a GCD queue, not the cooperative pool,
     /// which cannot spare a worker thread for good — and answers nil if it has not finished by the
-    /// deadline. The read itself keeps running and its result is simply never looked at again.
+    /// deadline. The read itself keeps running; if it does finish after all, `onLateAnswer` is told,
+    /// and its result is otherwise never looked at again.
     static func readWithinDeadline<T: Sendable>(
         deadlineNanoseconds: UInt64,
         pollingIntervalNanoseconds: UInt64 = 25_000_000,
+        onLateAnswer: (@Sendable () -> Void)? = nil,
         _ read: @escaping @Sendable () -> T
     ) async -> T? {
         let result = ReadResult<T>()
         ioQueue.async {
-            result.set(read())
+            if result.set(read()) {
+                onLateAnswer?()
+            }
         }
         var waited: UInt64 = 0
         while waited < deadlineNanoseconds {
             if let value = result.value { return value }
-            try? await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
+            do {
+                try await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
+            } catch {
+                break   // The caller is gone; stop waiting rather than spin through the deadline.
+            }
             waited += pollingIntervalNanoseconds
         }
-        return result.value
+        return result.abandon()
     }
 
     private func applyDiskSnapshot(_ reads: [SlotRead], to indices: Set<Int>) {
@@ -521,11 +579,24 @@ final class NotesViewModel: ObservableObject {
 final class ReadResult<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var stored: Value?
+    private var abandoned = false
 
-    func set(_ value: Value) {
+    /// Stores the value, first one wins. Answers whether the waiter had already given up on it.
+    @discardableResult
+    func set(_ value: Value) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         if stored == nil { stored = value }
+        return abandoned
+    }
+
+    /// Stops waiting. Answers the value if it arrived in time after all; otherwise a later `set`
+    /// learns that it came too late.
+    func abandon() -> Value? {
+        lock.lock()
+        defer { lock.unlock() }
+        if stored == nil { abandoned = true }
+        return stored
     }
 
     var value: Value? {

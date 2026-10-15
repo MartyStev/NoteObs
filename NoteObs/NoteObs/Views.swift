@@ -184,7 +184,7 @@ struct HeaderBarView: View {
                     Label("не сохраняется", systemImage: "exclamationmark.arrow.circlepath")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .help("Текст ещё не записан в папку заметок — проба повторяется.")
+                        .help("Текст ещё не записан в папку заметок. Он сохранён отдельно и будет записан, когда папка ответит.")
                 }
                 Spacer()
             }

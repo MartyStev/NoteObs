@@ -28,6 +28,9 @@ final class AppContainer {
         viewModel.folderStalledHandler = { [weak self] in
             self?.handleStalledFolder()
         }
+        viewModel.folderAnsweredHandler = { [weak self] in
+            self?.configureFileStore()
+        }
         viewModel.folderUnreadableHandler = { [weak self] slotIndices in
             self?.handleUnreadableSlots(slotIndices)
         }
