@@ -45,14 +45,17 @@ final class NotesViewModel: ObservableObject {
         let text: String
         let generation: Int
         let attempt: Int
+        /// When the write leaves its debounce; nil once it is going out without one.
+        let firesAt: Date?
         let task: Task<Void, Never>
     }
 
     private var pendingSaves: [Int: PendingSave] = [:]
     /// Bumped by every scheduled write: a read that started before a keystroke is behind it.
     private var saveGeneration = 0
-    /// Bumped by every confirmed write: a read that started before a write landed may predate it.
-    private var landedSaves = 0
+    /// Per slot, bumped by every keystroke and every confirmed write. A read whose slot moved on
+    /// while it was out is behind for that slot, and only that slot.
+    private var slotChanges: [Int]
     private var attachedPath: String?
     /// How the folder is read. The regression checks swap it to stage a folder that answers late.
     var snapshotReader: @Sendable (NotesFileStore, Int) -> [SlotRead] = { store, count in
@@ -94,6 +97,7 @@ final class NotesViewModel: ObservableObject {
             NoteSlot(id: index, color: color, text: "")
         }
         self.syncedTexts = Array(repeating: "", count: colors.count)
+        self.slotChanges = Array(repeating: 0, count: colors.count)
         self.recovery = RecoveryStore(baseDirectory: recoveryBase)
     }
 
@@ -120,7 +124,11 @@ final class NotesViewModel: ObservableObject {
         guard slots.indices.contains(selectedIndex) else { return }
         let index = selectedIndex
         slots[index].text = text
-        scheduleSave(text: text, index: index, delay: saveDebounce)
+        // Typing into a note whose write keeps failing must not turn the backoff into a retry per
+        // keystroke: the next attempt waits at least as long as the one it replaces.
+        let attempt = failingSlots.contains(index) ? (pendingSaves[index]?.attempt ?? 0) : 0
+        let backoff = attempt > 0 ? retryDelays[min(attempt - 1, retryDelays.count - 1)] : 0
+        scheduleSave(text: text, index: index, delay: max(saveDebounce, backoff), attempt: attempt)
     }
 
     private func scheduleSave(text: String, index: Int, delay: UInt64, attempt: Int = 0) {
@@ -130,6 +138,7 @@ final class NotesViewModel: ObservableObject {
         if fileStore != nil || attachedPath != nil {
             recovery.mirror(text: text, index: index)
         }
+        slotChanges[index] += 1
         guard let fileStore else { return }
         pendingSaves[index]?.task.cancel()
         saveGeneration += 1
@@ -147,7 +156,7 @@ final class NotesViewModel: ObservableObject {
                 self.syncedTexts[index] = text
                 self.pendingSaves[index] = nil
                 self.failingSlots.remove(index)
-                self.landedSaves += 1
+                self.slotChanges[index] += 1
                 self.recovery.discard(index: index)
             } catch is CancellationError {
                 // Superseded by newer text for this slot, which carries its own write.
@@ -156,7 +165,13 @@ final class NotesViewModel: ObservableObject {
                 self?.handleSaveFailure(storeError, text: text, index: index, generation: generation, token: expectedToken)
             }
         }
-        pendingSaves[index] = PendingSave(text: text, generation: generation, attempt: attempt, task: task)
+        pendingSaves[index] = PendingSave(
+            text: text,
+            generation: generation,
+            attempt: attempt,
+            firesAt: delay > 0 ? Date().addingTimeInterval(TimeInterval(delay) / 1_000_000_000) : nil,
+            task: task
+        )
     }
 
     /// Whether a finished write still speaks for its slot: nothing newer was typed there, and the
@@ -193,10 +208,13 @@ final class NotesViewModel: ObservableObject {
         scheduleSave(text: text, index: index, delay: delay, attempt: attempt + 1)
     }
 
-    /// Writes every slot still waiting out its debounce, e.g. before switching slots. A slot already
-    /// backing off after a failure keeps its schedule rather than hammering a struggling folder.
+    /// Writes every slot still waiting out its debounce, e.g. before switching slots. A write already
+    /// on its way is left alone — sending it again would only queue a duplicate behind it — and a
+    /// slot backing off after a failure keeps its schedule rather than hammering a struggling folder.
     private func flushPendingSave() {
+        let now = Date()
         for (index, pending) in pendingSaves where pending.attempt == 0 {
+            guard let firesAt = pending.firesAt, firesAt > now else { continue }
             scheduleSave(text: pending.text, index: index, delay: 0)
         }
     }
@@ -229,7 +247,12 @@ final class NotesViewModel: ObservableObject {
         }
         let token = UUID()
         fileStoreToken = token
-        fileStore = store
+        // No folder takes writes until this one has been read: a keystroke made meanwhile lands in
+        // the mirror only, and the comparison below decides whether it is owed to the folder. The
+        // previous folder's handle goes too, so nothing typed now can reach it.
+        fileStore = nil
+        externalChangeMonitor?.stop()
+        externalChangeMonitor = nil
         attachedPath = folderKey
         cancelPendingSaves()
         failingSlots = []
@@ -259,6 +282,7 @@ final class NotesViewModel: ObservableObject {
             folderUnreadableHandler?(unreadable)
             return
         }
+        fileStore = store
         contentFolderKey = folderKey
         let slotCount = slots.count
         // Best effort, and bounded like a read: a provider that parks this must not keep the folder
@@ -269,6 +293,8 @@ final class NotesViewModel: ObservableObject {
         }
         guard fileStoreToken == token else { return }
 
+        // What this session last confirmed on disk, per slot, before the loop rewrites it.
+        let confirmedTexts = syncedTexts
         for index in slots.indices {
             let localText = slots[index].text
             let diskText = diskTexts[index].text
@@ -285,7 +311,10 @@ final class NotesViewModel: ObservableObject {
             // an edit of that content, so a non-empty note on disk is offered back, never replaced.
             let diskHasNote = !(diskText ?? "").isEmpty
             let typedBeforeRead = mirrored == localText && !diskHasNote
-            if !localText.isEmpty, localText != diskText, resuming || typedBeforeRead {
+            // Resuming only pushes what the folder was never given. A note that was written and not
+            // touched since is clean: if the disk differs now, someone else changed it, and that wins.
+            let owedOnResume = resuming && localText != confirmedTexts[index]
+            if !localText.isEmpty, localText != diskText, owedOnResume || typedBeforeRead {
                 // Written through the folder's write queue like any other save: a write parked by
                 // the provider must not freeze the app, and must not be overtaken by an older one.
                 syncedTexts[index] = diskText ?? ""
@@ -396,8 +425,7 @@ final class NotesViewModel: ObservableObject {
     func refreshFromDisk() async {
         guard let fileStore, !isFolderStalled else { return }
         let expectedToken = fileStoreToken
-        let expectedGeneration = saveGeneration
-        let expectedLanded = landedSaves
+        let changesBefore = slotChanges
         let outcome = await readSnapshot(of: fileStore)
         guard fileStoreToken == expectedToken else { return }
         guard case .loaded(let texts) = outcome else {
@@ -415,10 +443,11 @@ final class NotesViewModel: ObservableObject {
             closeFolderOverUnreadableSlots(unreadable)
             return
         }
-        // A keystroke, or a write landing, while we were reading means what we read is behind: a
-        // snapshot taken before our own write would otherwise put the older text back.
-        guard saveGeneration == expectedGeneration, landedSaves == expectedLanded else { return }
-        applyDiskSnapshot(texts)
+        // A slot that saw a keystroke, or one of our writes landing, while we were reading is behind
+        // in this snapshot: applying it would put older text back. The other slots are current, and
+        // dropping them too would miss an external edit until the next file event.
+        let settled = Set(slots.indices.filter { slotChanges[$0] == changesBefore[$0] })
+        applyDiskSnapshot(texts, to: settled)
     }
 
     /// Lands every queued mirror. Called before the synchronous write on termination: that write
@@ -470,8 +499,8 @@ final class NotesViewModel: ObservableObject {
         return result.value
     }
 
-    private func applyDiskSnapshot(_ reads: [SlotRead]) {
-        for index in slots.indices {
+    private func applyDiskSnapshot(_ reads: [SlotRead], to indices: Set<Int>) {
+        for index in slots.indices where indices.contains(index) {
             // Missing and unreadable files are left alone: neither is evidence the note changed.
             guard let diskText = reads[index].text else { continue }
             // Our own write coming back through the file monitor.

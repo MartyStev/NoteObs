@@ -169,7 +169,10 @@ public enum NotesVerificationSuite {
             VerificationCase(name: "typing in one note never cancels another note's retry") { try await testTypingElsewhereKeepsAnotherSlotsRetry() },
             VerificationCase(name: "a write refuses to replace a note that will not read") { try await testWriteRefusesAnUnreadableSlot() },
             VerificationCase(name: "a snapshot read before our write landed does not undo it") { try await testSlowSnapshotDoesNotUndoALandedWrite() },
-            VerificationCase(name: "quitting never waits on a write the folder does not answer") { try await testQuittingDoesNotWaitOnAStalledWrite() }
+            VerificationCase(name: "quitting never waits on a write the folder does not answer") { try await testQuittingDoesNotWaitOnAStalledWrite() },
+            VerificationCase(name: "typing while a folder is being read never overwrites its notes") { try await testTypingDuringTheFirstReadIsNotWritten() },
+            VerificationCase(name: "re-picking the folder never pushes a clean note over a newer one") { try await testRepickingTheFolderKeepsNewerDiskContent() },
+            VerificationCase(name: "typing in one note does not hide an external edit to another") { try await testRefreshAppliesSettledSlotsWhileTyping() }
         ]
     }
 
@@ -1409,6 +1412,88 @@ public enum NotesVerificationSuite {
 
         try vexpect(elapsed < 1, "quitting waited \(elapsed)s on a folder that did not answer")
         try vexpectEqual(mirrors.contents(ofSlotAt: 0), "typed just before quitting", "the text is kept for the next launch")
+    }
+
+    static func testTypingDuringTheFirstReadIsNotWritten() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let slot = VerificationWorkspace.slotURL(folder, 0)
+        try "the note on disk".write(to: slot, atomically: true, encoding: .utf8)
+
+        // A synced folder that takes longer to read than the editor's debounce.
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase, readTimeout: 3_000_000_000)
+        viewModel.snapshotReader = { store, count in
+            Thread.sleep(forTimeInterval: 0.9)
+            return store.loadSnapshot(count: count)
+        }
+        let store = try NotesFileStore(path: folder.path)
+        let opening = Task { await viewModel.attachFileStore(store) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        viewModel.updateText("typed before the note had loaded")
+        try await Task.sleep(nanoseconds: 600_000_000)   // the debounce runs out while the read is out
+
+        try vexpectEqual(try VerificationWorkspace.read(slot), "the note on disk", "nothing was written while the folder was being read")
+
+        await opening.value
+        await viewModel.flushPendingSaves()
+        try vexpectEqual(try VerificationWorkspace.read(slot), "the note on disk", "the unread note was not replaced")
+        try vexpectEqual(viewModel.slots[0].text, "the note on disk", "the note shows what the folder holds")
+        try vexpectEqual(
+            viewModel.recoveryOffers,
+            [RecoveryOffer(index: 0, text: "typed before the note had loaded")],
+            "what was typed is offered back"
+        )
+    }
+
+    static func testRepickingTheFolderKeepsNewerDiskContent() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let slot = VerificationWorkspace.slotURL(folder, 0)
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+        viewModel.updateText("written here")
+        await viewModel.flushPendingSaves()
+
+        // Another Mac updates the note, and the user re-picks the folder before any refresh ran.
+        try "updated on another Mac".write(to: slot, atomically: true, encoding: .utf8)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+        await viewModel.flushPendingSaves()
+
+        try vexpectEqual(try VerificationWorkspace.read(slot), "updated on another Mac", "the newer note was not overwritten")
+        try vexpectEqual(viewModel.slots[0].text, "updated on another Mac", "and it is what the note shows")
+    }
+
+    static func testRefreshAppliesSettledSlotsWhileTyping() async throws {
+        let folder = try VerificationWorkspace.makeFolder()
+        let recoveryBase = try VerificationWorkspace.makeFolder()
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: recoveryBase)
+        }
+        let viewModel = NotesViewModel(recoveryBase: recoveryBase)
+        await viewModel.attachFileStore(try NotesFileStore(path: folder.path))
+
+        try "edited on another Mac".write(to: VerificationWorkspace.slotURL(folder, 1), atomically: true, encoding: .utf8)
+        viewModel.snapshotReader = { store, count in
+            let snapshot = store.loadSnapshot(count: count)
+            Thread.sleep(forTimeInterval: 0.5)
+            return snapshot
+        }
+        let refreshing = Task { await viewModel.refreshFromDisk() }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        viewModel.updateText("typing in the first note")   // lands while the read is out
+        await refreshing.value
+
+        try vexpectEqual(viewModel.slots[1].text, "edited on another Mac", "the other note's external edit is shown")
+        try vexpectEqual(viewModel.slots[0].text, "typing in the first note", "the typing is untouched")
     }
 
     static func testRecoveryDirectoryFollowsTheRename() async throws {

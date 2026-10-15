@@ -34,6 +34,9 @@ public final class FileWriteQueue: Sendable {
         return done.wait(timeout: .now() + timeout) == .success
     }
 
+    /// Stays on the caller's executor up to the moment the work is queued, so two writes asked for
+    /// from the main actor are queued in the order they were asked for.
+    nonisolated(nonsending)
     public func perform(_ work: @escaping @Sendable () throws -> Void) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async {
@@ -122,12 +125,16 @@ public struct NotesFileStore: Sendable {
 
     /// Creates any slot file that is still missing. Best effort: a synced folder may be busy,
     /// and a missing file is handled by the writer anyway.
+    ///
+    /// Each file is created exclusively, never written: this call can be abandoned at its deadline and
+    /// wake up much later, by which time the user's first write may have created the file. An
+    /// exclusive create then simply fails, where a write would have blanked that note.
     public func ensureSlotFiles(count: Int) {
-        let fileManager = FileManager.default
         for index in 0..<count {
-            let url = fileURL(for: index)
-            guard !fileManager.fileExists(atPath: url.path) else { continue }
-            try? Data().write(to: url, options: .atomic)
+            let descriptor = open(fileURL(for: index).path, O_WRONLY | O_CREAT | O_EXCL, 0o644)
+            if descriptor >= 0 {
+                close(descriptor)
+            }
         }
     }
 
@@ -135,6 +142,7 @@ public struct NotesFileStore: Sendable {
         (0..<count).map(fileURL(for:))
     }
 
+    nonisolated(nonsending)
     public func save(text: String, index: Int) async throws {
         let store = self
         try await writeQueue.perform {
@@ -164,7 +172,7 @@ public struct NotesFileStore: Sendable {
         }
         // Checked at the last moment before writing: a note that went unreadable since the folder was
         // last read is still somebody's content, and an atomic write would replace it outright.
-        if readSlot(at: url) == .unreadable {
+        if holdsUndecodableText(url) {
             throw NotesFileStoreError.slotUnreadable
         }
         do {
@@ -172,6 +180,14 @@ public struct NotesFileStore: Sendable {
         } catch {
             throw classificationOfWriteFailure()
         }
+    }
+
+    /// Whether the file is there, reads, and is not UTF-8 text. A file that cannot be read at all right
+    /// now is a provider hiccup, not evidence of foreign content: the write goes ahead and, if it
+    /// fails too, is retried like any other.
+    private func holdsUndecodableText(_ url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url) else { return false }
+        return String(data: data, encoding: .utf8) == nil
     }
 
     /// A failed write only means the folder is gone when the folder really is gone; otherwise
