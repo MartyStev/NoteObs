@@ -582,7 +582,7 @@ public enum NotesVerificationSuite {
         viewModel.updateText("saved here first")
         await viewModel.flushPendingSaves()
 
-        // The note is edited elsewhere (Obsidian on another device) and we relaunch.
+        // The note is edited elsewhere (another app, or another Mac through the cloud) and we relaunch.
         try "edited outside the app".write(
             to: VerificationWorkspace.slotURL(folder, 0),
             atomically: true,

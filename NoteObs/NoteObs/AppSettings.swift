@@ -259,7 +259,9 @@ final class AppSettings: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Выбрать"
-        panel.message = "Выберите папку с заметками"
+        // Any folder works; one inside a cloud drive is how notes reach the user's other Macs, with
+        // that drive's own client doing the sync and no account in this app.
+        panel.message = "Выберите папку с заметками. Папка в iCloud Drive, OneDrive, Dropbox или другом облаке синхронизирует заметки между вашими Mac."
         if !notesFolderPath.isEmpty {
             // Re-picking the folder it already points at is the one click that restores access.
             panel.directoryURL = URL(fileURLWithPath: notesFolderPath, isDirectory: true)
