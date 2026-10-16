@@ -18,10 +18,10 @@ verify:
 	$(BIN_DIR)/NoteObs --verify
 
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' NoteObs/Info.plist)
-DIST := ../dist
+DIST := dist
 APP := $(DIST)/NoteObs.app
 
-## Builds the release binary, runs the checks against it, and packs ../dist/NoteObs.app (signed ad hoc:
+## Builds the release binary, runs the checks against it, and packs dist/NoteObs.app (signed ad hoc:
 ## there is no Developer ID here) together with a zip and a dmg of it.
 release-app:
 	$(SWIFT) build -c release

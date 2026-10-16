@@ -1,6 +1,19 @@
-# NoteObs
+<p align="center">
+  <img src="docs/icon.png" width="128" alt="Иконка NoteObs: ковш Большой Медведицы из семи цветных звёзд">
+</p>
 
-Заметки в строке меню macOS: семь быстрых заметок под одной иконкой, каждая — обычный Markdown-файл в папке, которую вы выбрали.
+<h1 align="center">NoteObs</h1>
+
+<p align="center">
+  Семь быстрых заметок в строке меню macOS.<br>
+  Каждая — обычный Markdown-файл в любой папке, которую вы выбрали, в том числе в облаке.
+</p>
+
+<p align="center">
+  macOS 13+ · Swift 6.2 · без аккаунтов и серверов · бесплатно, исходники открыты
+</p>
+
+---
 
 ## Идея: любая папка, синхронизация — через облако, которое у вас уже есть
 
@@ -47,7 +60,7 @@ NoteObs не держит своего сервера, своего облака
 
 ## Установка
 
-Готовая сборка после `make release-app` лежит в `dist/`: `NoteObs.app`, `NoteObs.dmg` и zip-архив. Перетащите `NoteObs.app` в «Программы».
+Готовая сборка после `make release-app` лежит в `dist/` (в git её нет): `NoteObs.app`, `NoteObs.dmg` и zip-архив. Перетащите `NoteObs.app` в «Программы».
 
 Сборка подписана ad hoc (без Developer ID), поэтому на другом Mac при первом запуске macOS предупредит о неизвестном разработчике: откройте приложение через правый клик → «Открыть».
 
@@ -60,9 +73,8 @@ NoteObs раньше назывался TotClone. При первом запус
 Нужны macOS 13+ и Swift 6.2 (достаточно Command Line Tools; Xcode не обязателен).
 
 ```bash
-cd NoteObs
 make verify        # сборка и прогон сценариев проверки на реальных папках
-make release-app   # релизная сборка, проверки, NoteObs.app + dmg + zip в ../dist
+make release-app   # релизная сборка, проверки, NoteObs.app + dmg + zip в dist/
 make icon          # перерисовать иконку Assets/AppIcon.icns
 ```
 
@@ -82,4 +94,23 @@ make icon          # перерисовать иконку Assets/AppIcon.icns
 | `Views.swift`, `MarkdownStyling.swift`, `Checklist.swift` | Интерфейс, подсветка ссылок, чекбоксы |
 | `NoteShortcuts.swift` | Сочетания клавиш |
 | `Verification.swift` | Сценарии проверки (`make verify`) |
+| `Tests/NoteObsTests` | Тонкая обёртка: показывает те же сценарии в навигаторе тестов Xcode |
 | `Tools/make-icon.swift` | Иконка: ковш Большой Медведицы — семь звёзд по числу заметок, каждая цвета своей заметки |
+
+Структура репозитория:
+
+```
+NoteObs/            исходники приложения (Swift, Info.plist)
+Tests/              обёртка сценариев для Xcode
+Tools/              скрипт отрисовки иконки
+Assets/             готовая иконка AppIcon.icns
+docs/               картинка для README
+Package.swift       сборка через SwiftPM (swift build / make)
+NoteObs.xcodeproj   проект Xcode (те же исходники)
+Makefile            verify, release-app, icon
+CHANGELOG.md        что менялось по версиям
+```
+
+## Лицензия
+
+Лицензия пока не выбрана: пока она не добавлена, по умолчанию действуют все права автора.

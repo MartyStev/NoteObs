@@ -1,3 +1,14 @@
-# Built release artifacts (NoteObs.app, .dmg, .zip) are produced by `make release-app`.
+# Built by `make release-app`: NoteObs.app, the dmg and the zip.
 /dist
+
+# SwiftPM / Xcode
+/.build
+/Packages
+.swiftpm/
+xcuserdata/
+DerivedData/
+.derivedData/
+.netrc
+
+# macOS
 .DS_Store
