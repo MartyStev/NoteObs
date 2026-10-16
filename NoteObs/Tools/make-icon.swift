@@ -151,11 +151,7 @@ func draw(in context: CGContext, pixels: Int) {
         }
     }
 
-    // A thin light edge along the top of the tile.
-    context.addPath(body)
-    context.setLineWidth(4)
-    context.setStrokeColor(NSColor.white.withAlphaComponent(0.10).cgColor)
-    context.strokePath()
+    // No outline: a light edge reads as a frame on dark backgrounds at Finder and Dock sizes.
     context.restoreGState()
 }
 
