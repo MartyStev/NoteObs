@@ -25,6 +25,7 @@
 		B10000000000000000000005 /* SettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* SettingsMigration.swift */; };
 		B10000000000000000000006 /* Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* Verification.swift */; };
 		B10000000000000000000007 /* Checklist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* Checklist.swift */; };
+		B10000000000000000000008 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000008 /* AppIcon.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +49,7 @@
 		B20000000000000000000005 /* SettingsMigration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsMigration.swift; sourceTree = "<group>"; };
 		B20000000000000000000006 /* Verification.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Verification.swift; sourceTree = "<group>"; };
 		B20000000000000000000007 /* Checklist.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Checklist.swift; sourceTree = "<group>"; };
+		B20000000000000000000008 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Assets/AppIcon.icns; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000004 /* NoteObs */,
+				B20000000000000000000008 /* AppIcon.icns */,
 				A10000000000000000000003 /* Frameworks */,
 				A10000000000000000000002 /* Products */,
 			);
@@ -170,6 +173,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000008 /* AppIcon.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

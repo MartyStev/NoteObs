@@ -7,7 +7,7 @@
 SWIFT ?= swift
 BIN_DIR := $(shell $(SWIFT) build -c debug --show-bin-path)
 
-.PHONY: verify build release-app clean
+.PHONY: verify build release-app icon clean
 
 build:
 	$(SWIFT) build
@@ -27,15 +27,22 @@ release-app:
 	$(SWIFT) build -c release
 	"$$($(SWIFT) build -c release --show-bin-path)/NoteObs" --verify
 	rm -rf "$(APP)"
-	mkdir -p "$(APP)/Contents/MacOS"
+	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	cp "$$($(SWIFT) build -c release --show-bin-path)/NoteObs" "$(APP)/Contents/MacOS/NoteObs"
 	cp NoteObs/Info.plist "$(APP)/Contents/Info.plist"
+	cp Assets/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	codesign --force --sign - --timestamp=none "$(APP)"
 	codesign --verify --strict "$(APP)"
 	rm -f "$(DIST)/NoteObs-$(VERSION)-macOS-Release.zip" "$(DIST)/NoteObs.dmg"
 	cd "$(DIST)" && ditto -c -k --keepParent NoteObs.app "NoteObs-$(VERSION)-macOS-Release.zip"
 	hdiutil create -quiet -volname NoteObs -srcfolder "$(APP)" -ov -format UDZO "$(DIST)/NoteObs.dmg"
+
+## Redraws Assets/AppIcon.icns from Tools/make-icon.swift (the Big Dipper, one star per note).
+icon:
+	rm -rf .build/AppIcon.iconset
+	$(SWIFT) Tools/make-icon.swift .build/AppIcon.iconset
+	iconutil -c icns .build/AppIcon.iconset -o Assets/AppIcon.icns
 
 clean:
 	rm -rf .build
