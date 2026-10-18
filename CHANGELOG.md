@@ -1,37 +1,35 @@
-# Журнал изменений
+# Changelog
 
-Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — по `CFBundleShortVersionString`.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions match `CFBundleShortVersionString`.
 
 ## [0.6] — 2026-10-16
 
-Проект переименован из TotClone в NoteObs.
+### Added
+- App icon: the Big Dipper, seven stars for the seven notes, each in its note's color (`make icon`).
+- An "unreadable notes" state: a dialog and a screen with "Check again" and "Open in Finder" buttons.
+- A folder that answers late (for example after macOS grants access) is reopened automatically.
+- The "not saving" hint now also appears for a write that the cloud folder holds for more than 5 seconds.
+- A hint about cloud drives in the folder picker, VoiceOver labels, and a `README.md`.
+- `make release-app` builds `dist/NoteObs.app`, a dmg and a zip, signed ad hoc.
 
-### Добавлено
-- Иконка: ковш Большой Медведицы, семь звёзд по числу заметок, каждая цвета своей заметки (`make icon`).
-- Состояние «заметки не читаются»: диалог и экран с кнопками «Проверить снова» и «Открыть в Finder».
-- Автоматическое подключение папки, которая ответила с опозданием (например, после разрешения macOS).
-- Метка «не сохраняется» и для записи, которую облачная папка держит дольше 5 секунд.
-- Подсказка про облачные диски в окне выбора папки; подписи VoiceOver; `README.md`.
-- `make release-app` собирает `dist/NoteObs.app`, dmg и zip; ad hoc подпись.
+### Changed
+- New bundle identifier `dev.martystev.noteobs`. Settings and unsent recovery backups from earlier builds are carried over automatically.
+- Notes are walked with `⌘⌥←/→`; `⌘←/→` move the caret within the line again. `⌘1…7` and the arrows only act in the notes window.
+- A checkbox toggles when you click the `[ ]` itself; links open on a single click; `⌘⇧C` works on non-Latin keyboard layouts.
+- Writes go through a separate queue per folder, and each note has its own retry queue.
+- Consistent wording across the interface.
 
-### Изменено
-- Новый bundle id `dev.martystev.noteobs`. Настройки и неотправленные резервные копии переносятся с `TotClone` автоматически.
-- Заметки листаются по `⌘⌥←/→`; `⌘←/→` снова двигают курсор по строке. `⌘1…7` и стрелки действуют только в окне заметок.
-- Чекбокс переключается кликом по самому `[ ]`; ссылки открываются одиночным кликом; `⌘⇧C` работает на русской раскладке.
-- Запись идёт на отдельной очереди для каждой папки, у каждой заметки своя очередь повторов.
-- Единые формулировки интерфейса.
+### Fixed
+- Notes from one folder no longer end up in another when the read of the newly chosen folder stalls.
+- A file that exists but can't be read is no longer turned into an empty note or overwritten.
+- Text typed before the folder was loaded no longer overwrites notes that haven't been read yet: it is offered back for restoring.
+- Picking the same folder again no longer overwrites a note that was updated on another Mac.
+- Typing in one note no longer hides an outside edit to another.
+- A note emptied while the folder was away stays empty when the folder reconnects.
+- The folder is no longer opened twice at launch; picking the same folder again reopens it.
+- Quitting no longer waits more than 2 seconds on a stalled write.
+- The undo stack is cleared when the note changes; font and colors are no longer reapplied on every keystroke.
 
-### Исправлено
-- Заметки одной папки больше не попадают в другую при зависшем чтении новой папки.
-- Файл, который есть, но не читается, не превращается в пустую заметку и не перезаписывается.
-- Текст, набранный до загрузки папки, не затирает ещё не прочитанные заметки: он предлагается к восстановлению.
-- Повторный выбор той же папки не затирает заметку, обновлённую на другом Mac.
-- Правка в одной заметке больше не скрывает внешнюю правку другой.
-- Очищенная заметка не возвращается после переподключения папки.
-- Папка больше не подключается дважды при запуске; повторный выбор той же папки снова её открывает.
-- Выход из приложения не ждёт «зависшую» запись дольше 2 секунд.
-- Стек отмены сбрасывается при смене заметки; шрифт и цвета не переустанавливаются на каждое нажатие.
+## [0.5]
 
-## [0.5] — TotClone
-
-Последняя версия под прежним именем: семь заметок в строке меню, хранение в `slotN.md`, резервные копии несохранённого текста.
+First version with the current feature set: seven notes in the menu bar, storage in `slotN.md`, and backups of unsaved text.
