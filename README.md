@@ -1,117 +1,115 @@
 <p align="center">
-  <img src="docs/icon.png" width="128" alt="Иконка NoteObs: ковш Большой Медведицы из семи цветных звёзд">
+  <img src="docs/icon.png" width="128" alt="NoteObs icon: the Big Dipper drawn as seven colored stars">
 </p>
 
 <h1 align="center">NoteObs</h1>
 
 <p align="center">
-  Семь быстрых заметок в строке меню macOS.<br>
-  Каждая — обычный Markdown-файл в любой папке, которую вы выбрали, в том числе в облаке.
+  Seven quick notes in the macOS menu bar.<br>
+  Each one is a plain Markdown file in any folder you choose, including a cloud drive.
 </p>
 
 <p align="center">
-  macOS 13+ · Swift 6.2 · без аккаунтов и серверов · бесплатно · лицензия MIT
+  macOS 13+ · Swift 6.2 · no accounts, no servers · free · MIT license
 </p>
 
 ---
 
-## Идея: любая папка, синхронизация — через облако, которое у вас уже есть
+## The idea: any folder, synced by the cloud you already use
 
-NoteObs не держит своего сервера, своего облака и учётной записи. Заметки — это файлы `slot1.md … slot7.md` в выбранной папке, и больше ничего.
+NoteObs has no server, no cloud and no account of its own. Your notes are the files `slot1.md … slot7.md` in the folder you pick, and nothing else.
 
-- **Нужна синхронизация между Mac** — выберите папку внутри облачного диска, который уже установлен: iCloud Drive, OneDrive, Dropbox, Google Drive, Яндекс Диск и т. п. Синхронизирует облачный клиент, входить в аккаунт в самом приложении не нужно.
-- **Не нужна** — подойдёт любая локальная папка.
-- **Сменить облако** — просто выберите другую папку.
-- Заметки остаются вашими файлами: их можно открыть в любом редакторе, в Finder, в Obsidian или в чём угодно ещё. Ссылки `obsidian://` в тексте кликабельны, но сам Obsidian не нужен.
+- **Want sync between Macs?** Pick a folder inside a cloud drive that is already installed: iCloud Drive, OneDrive, Dropbox, Google Drive, Yandex Disk and so on. The drive's own client does the syncing, and there is nothing to sign in to in NoteObs.
+- **Don't need sync?** Any local folder works.
+- **Switching clouds?** Just pick another folder.
+- The notes stay your files: open them in any editor, in Finder, in Obsidian or anything else. `obsidian://` links in the text are clickable, but Obsidian itself is not required.
 
-## Возможности
+## Features
 
-- Семь заметок, у каждой свой цвет. Иконка в строке меню открывает панель; её можно вынести в отдельное окно и закрепить поверх всех окон.
-- Markdown-текст с кликабельными ссылками (`https://`, `mailto:`, `obsidian://`) и чекбоксами `- [ ]` / `- [x]`.
-- Шрифт, размер текста, цвет и прозрачность панели, стиль матового стекла, размер окна, запуск при входе в систему.
-- Правый клик по иконке: список заметок, «Открыть папку в Finder», «Настройки…», «Завершить NoteObs».
+- Seven notes, each with its own color. The menu bar icon opens a panel, which can also be detached into a window and pinned above other windows.
+- Markdown text with clickable links (`https://`, `mailto:`, `obsidian://`) and checkboxes (`- [ ]` / `- [x]`).
+- Font family and size, panel color and opacity, blur style, window size, launch at login.
+- Right-click the icon for the list of notes, "Open folder in Finder", "Settings…" and "Quit NoteObs".
 
-### Сочетания клавиш
+The interface language is Russian.
 
-| Сочетание | Действие |
+### Keyboard shortcuts
+
+| Shortcut | Action |
 |---|---|
-| `⌘1` … `⌘7` | Перейти к заметке 1–7 |
-| `⌘⌥←` / `⌘⌥→` | Предыдущая / следующая заметка |
-| `⌘⇧C` | Поставить или снять чекбокс в текущей строке (работает и в русской раскладке) |
-| `⌘←` / `⌘→` | Начало / конец строки, как в любом редакторе |
+| `⌘1` … `⌘7` | Jump to note 1–7 |
+| `⌘⌥←` / `⌘⌥→` | Previous / next note |
+| `⌘⇧C` | Toggle the checkbox on the current line (works on any keyboard layout) |
+| `⌘←` / `⌘→` | Start / end of line, as in any editor |
 
-Сочетания заметок действуют только в панели и окне NoteObs, а не в настройках или диалогах.
+The note shortcuts only act inside the NoteObs panel and window, not in Settings or dialogs.
 
-## Как хранятся заметки и почему они не теряются
+## How notes are stored, and why they don't get lost
 
-Облачные папки ведут себя не так, как локальный диск: доступ может ждать разрешения macOS, файл может быть ещё не скачан, провайдер может «подвиснуть» на записи, а с другого Mac может прийти более новая версия. NoteObs рассчитан именно на это:
+A cloud folder behaves differently from a local disk: access may wait for a macOS permission prompt, a file may not be downloaded yet, the provider may stall on a write, and a newer version may arrive from another Mac. NoteObs is built for exactly that:
 
-- **Резервная копия каждого изменения.** Пока текст не подтверждён записью в папку, его копия лежит в `~/Library/Application Support/NoteObs/recovery` — вне облачной папки, чтобы конфликт синхронизации или откат не стёр единственную копию. Если приложение закрылось раньше, чем папка приняла текст, при следующем запуске NoteObs предложит его восстановить.
-- **Пока папка не прочитана, в неё ничего не пишется.** Текст, набранный до загрузки заметок, не затирает их, а предлагается к восстановлению.
-- **Чужая правка не затирается.** Если заметка изменилась на другом Mac, а здесь её не трогали, побеждает версия из папки.
-- **Нечитаемый файл не превращается в пустую заметку.** Если файл есть, но не читается (не UTF-8, ещё не докачан), запись в папку останавливается, а NoteObs предлагает открыть папку в Finder и проверить снова.
-- **Медленная или «зависшая» папка не замораживает приложение.** Чтение ждёт до 5 секунд; если macOS ещё спрашивает доступ, NoteObs скажет об этом и сам подключит папку, когда она ответит. Запись, которая задерживается, помечается «не сохраняется».
-- **Повторы при сбоях записи** с нарастающей паузой; у каждой заметки своя очередь, поэтому работа в одной заметке не отменяет запись другой.
+- **Every change is backed up first.** Until the folder confirms a write, a copy of the text lives in `~/Library/Application Support/NoteObs/recovery`, outside the cloud folder, so a sync conflict or rollback can't erase the only copy. If the app quits before the folder took the text, NoteObs offers to restore it on the next launch.
+- **Nothing is written until the folder has been read.** Text typed before the notes finished loading never overwrites them; it is offered back for restoring instead.
+- **Edits from elsewhere are not overwritten.** If a note changed on another Mac and was left untouched here, the version in the folder wins.
+- **An unreadable file never turns into an empty note.** If a file exists but can't be read (not UTF-8, not downloaded yet), writing to the folder stops, and NoteObs offers to open the folder in Finder and check again.
+- **A slow or stalled folder doesn't freeze the app.** A read waits up to 5 seconds; if macOS is still asking for access, NoteObs says so and reconnects the folder on its own once it answers. A write that is taking too long is flagged as "not saving".
+- **Failed writes are retried** with a growing delay, and each note has its own queue, so working in one note never cancels another's write.
 
-### Ограничения
+### Limitations
 
-- Если одну и ту же заметку одновременно правят на двух Mac, облачный клиент может создать копию с конфликтом — это решает облако, а не приложение.
-- При первом выборе папки в облачном диске macOS спросит разрешение на доступ к файлам — его нужно подтвердить.
+- If the same note is edited on two Macs at the same time, the cloud client may create a conflict copy. That is for the cloud to resolve, not the app.
+- The first time you pick a folder in a cloud drive, macOS asks for permission to access its files, and you need to approve it.
 
-## Установка
+## Installation
 
-Готовая сборка после `make release-app` лежит в `dist/` (в git её нет): `NoteObs.app`, `NoteObs.dmg` и zip-архив. Перетащите `NoteObs.app` в «Программы».
+After `make release-app`, the build is in `dist/` (not tracked in git): `NoteObs.app`, `NoteObs.dmg` and a zip archive. Drag `NoteObs.app` into Applications.
 
-Сборка подписана ad hoc (без Developer ID), поэтому на другом Mac при первом запуске macOS предупредит о неизвестном разработчике: откройте приложение через правый клик → «Открыть».
+The build is ad-hoc signed (no Developer ID), so on another Mac macOS will warn about an unidentified developer on first launch: right-click the app and choose "Open".
 
-### Переход с TotClone
+## Building from source
 
-NoteObs раньше назывался TotClone. При первом запуске он сам переносит настройки (папку, внешний вид, автозапуск) и неотправленные резервные копии из `Application Support/TotClone`. Старый пункт TotClone в «Системные настройки → Основные → Объекты входа» можно удалить вручную.
-
-## Сборка из исходников
-
-Нужны macOS 13+ и Swift 6.2 (достаточно Command Line Tools; Xcode не обязателен).
+Requires macOS 13+ and Swift 6.2 (Command Line Tools are enough; Xcode is optional).
 
 ```bash
-make verify        # сборка и прогон сценариев проверки на реальных папках
-make release-app   # релизная сборка, проверки, NoteObs.app + dmg + zip в dist/
-make icon          # перерисовать иконку Assets/AppIcon.icns
+make verify        # build and run the verification scenarios against real folders
+make release-app   # release build, checks, NoteObs.app + dmg + zip in dist/
+make icon          # redraw the icon, Assets/AppIcon.icns
 ```
 
-`make verify` — главный регрессионный барьер: сценарии из `NoteObs/Verification.swift` запускаются на временных папках и никогда не трогают ваши заметки и настройки. Они живут в самом приложении (`NoteObs --verify`), потому что с одними Command Line Tools нет XCTest и `swift test` выполнил бы ноль тестов.
+`make verify` is the regression gate: the scenarios in `NoteObs/Verification.swift` run against temporary folders and never touch your notes or settings. They live inside the app itself (`NoteObs --verify`) because a Command Line Tools installation has no XCTest, so `swift test` would build fine and run zero tests.
 
-## Устройство проекта
+## Project layout
 
-| Файл | За что отвечает |
+| File | Responsibility |
 |---|---|
-| `NotesViewModel.swift` | Заметки, отложенная запись по каждой заметке, повторы, сверка с папкой |
-| `NotesFileStore.swift` | Чтение и запись `slotN.md`, очередь записи на папку, защита нечитаемых файлов |
-| `RecoveryStore.swift` | Резервные копии неподтверждённого текста и их перенос со старого имени |
-| `NotesExternalChangeMonitor.swift` | Слежение за изменениями файлов извне |
-| `NotesFolderAccess.swift` | Закладки на папку, доступ к ней, единое имя папки при разных путях |
-| `AppDelegate.swift` | Иконка в строке меню, панель и окно, диалоги о состоянии папки |
-| `AppSettings.swift`, `SettingsMigration.swift` | Настройки и их перенос со старых bundle id |
-| `Views.swift`, `MarkdownStyling.swift`, `Checklist.swift` | Интерфейс, подсветка ссылок, чекбоксы |
-| `NoteShortcuts.swift` | Сочетания клавиш |
-| `Verification.swift` | Сценарии проверки (`make verify`) |
-| `Tests/NoteObsTests` | Тонкая обёртка: показывает те же сценарии в навигаторе тестов Xcode |
-| `Tools/make-icon.swift` | Иконка: ковш Большой Медведицы — семь звёзд по числу заметок, каждая цвета своей заметки |
+| `NotesViewModel.swift` | Notes, per-note delayed writes, retries, reconciliation with the folder |
+| `NotesFileStore.swift` | Reading and writing `slotN.md`, the per-folder write queue, protection for unreadable files |
+| `RecoveryStore.swift` | Backups of unconfirmed text, and carrying them over from earlier builds |
+| `NotesExternalChangeMonitor.swift` | Watching the files for outside changes |
+| `NotesFolderAccess.swift` | Folder bookmarks and access, one identity for a folder reached by different paths |
+| `AppDelegate.swift` | Menu bar icon, panel and window, dialogs about the folder's state |
+| `AppSettings.swift`, `SettingsMigration.swift` | Settings, and carrying them over from earlier bundle identifiers |
+| `Views.swift`, `MarkdownStyling.swift`, `Checklist.swift` | UI, link styling, checkboxes |
+| `NoteShortcuts.swift` | Keyboard shortcuts |
+| `Verification.swift` | The verification scenarios (`make verify`) |
+| `Tests/NoteObsTests` | A thin wrapper that shows the same scenarios in Xcode's test navigator |
+| `Tools/make-icon.swift` | The icon: the Big Dipper, one star per note, each in its note's color |
 
-Структура репозитория:
+Repository structure:
 
 ```
-NoteObs/            исходники приложения (Swift, Info.plist)
-Tests/              обёртка сценариев для Xcode
-Tools/              скрипт отрисовки иконки
-Assets/             готовая иконка AppIcon.icns
-docs/               картинка для README
-Package.swift       сборка через SwiftPM (swift build / make)
-NoteObs.xcodeproj   проект Xcode (те же исходники)
+NoteObs/            app sources (Swift, Info.plist)
+Tests/              scenario wrapper for Xcode
+Tools/              icon drawing script
+Assets/             the finished AppIcon.icns
+docs/               image for this README
+Package.swift       SwiftPM build (swift build / make)
+NoteObs.xcodeproj   Xcode project (same sources)
 Makefile            verify, release-app, icon
-CHANGELOG.md        что менялось по версиям
-LICENSE             лицензия MIT
+CHANGELOG.md        what changed in each version
+LICENSE             MIT license
 ```
 
-## Лицензия
+## License
 
-[MIT](LICENSE) © 2026 MartyStev: можно свободно использовать, изменять и распространять, сохраняя уведомление об авторстве.
+[MIT](LICENSE) © 2026 MartyStev. Free to use, modify and distribute, as long as the copyright notice is kept.
