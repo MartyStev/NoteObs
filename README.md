@@ -14,9 +14,9 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/panel.png" width="420" alt="The NoteObs panel open from the menu bar, showing a note with checkboxes and a link">
+  <img src="docs/screenshots/panel.png" height="260" alt="The NoteObs panel open from the menu bar, showing a note with checkboxes and a link">
   &nbsp;
-  <img src="docs/screenshots/window.png" width="360" alt="The same note detached into a floating window">
+  <img src="docs/screenshots/window.png" height="260" alt="The same note detached into a floating window">
 </p>
 
 ---
