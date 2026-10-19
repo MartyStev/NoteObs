@@ -13,6 +13,12 @@
   macOS 13+ · Swift 6.2 · no accounts, no servers · free · MIT license
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/panel.png" width="420" alt="The NoteObs panel open from the menu bar, showing a note with checkboxes and a link">
+  &nbsp;
+  <img src="docs/screenshots/window.png" width="360" alt="The same note detached into a floating window">
+</p>
+
 ---
 
 ## The idea: any folder, synced by the cloud you already use
@@ -102,7 +108,7 @@ NoteObs/            app sources (Swift, Info.plist)
 Tests/              scenario wrapper for Xcode
 Tools/              icon drawing script
 Assets/             the finished AppIcon.icns
-docs/               image for this README
+docs/               images for this README (icon, screenshots)
 Package.swift       SwiftPM build (swift build / make)
 NoteObs.xcodeproj   Xcode project (same sources)
 Makefile            verify, release-app, icon
